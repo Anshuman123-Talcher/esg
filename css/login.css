@@ -1,0 +1,506 @@
+/**
+ * Login Screen Stylesheet
+ * Aligned with MEIL ESG & BRSR Enterprise Design System
+ */
+
+.login-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--meil-navy-dark, #07192f) 0%, var(--meil-navy, #0b2545) 60%, var(--meil-navy-light, #133b5c) 100%);
+  padding: 24px;
+  position: relative;
+  overflow-x: hidden;
+  font-family: var(--font-sans, 'Inter', sans-serif);
+  color: var(--text-primary, #0f172a);
+}
+
+.login-body::before {
+  content: '';
+  position: absolute;
+  top: -15%;
+  right: -10%;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(29, 78, 216, 0.12) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+
+.login-container {
+  width: 100%;
+  max-width: 1020px;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  background: var(--bg-surface, #ffffff);
+  border-radius: var(--radius-xl, 16px);
+  box-shadow: var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.25));
+  overflow: hidden;
+  border: 1px solid var(--border-medium, #cbd5e1);
+  position: relative;
+  z-index: 10;
+}
+
+/* Left Branded Panel */
+.login-brand-panel {
+  background: linear-gradient(180deg, var(--meil-navy, #0b2545) 0%, var(--meil-navy-dark, #07192f) 100%);
+  padding: 44px 40px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.login-brand-panel::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--meil-red, #c8102e), var(--color-success, #059669), var(--meil-blue, #1d4ed8));
+}
+
+.brand-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-logo-img {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+  background: #ffffff;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 6px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.brand-title {
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  font-family: var(--font-display, 'Plus Jakarta Sans', sans-serif);
+  color: #ffffff;
+}
+
+.brand-title span {
+  color: var(--color-success, #059669);
+}
+
+.brand-subtitle {
+  font-size: 0.775rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.brand-features {
+  margin: 32px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.brand-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.brand-feature-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.brand-feature-text h4 {
+  font-size: 0.925rem;
+  font-weight: 600;
+  margin-bottom: 3px;
+  color: #ffffff;
+}
+
+.brand-feature-text p {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.brand-footer {
+  font-size: 0.775rem;
+  color: #94a3b8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 14px;
+}
+
+/* Right Form Panel */
+.login-form-panel {
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--bg-surface, #ffffff);
+}
+
+.login-form-header {
+  margin-bottom: 20px;
+}
+
+.login-form-header h2 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text-brand, #0b2545);
+  margin: 0 0 4px 0;
+  font-family: var(--font-display, 'Plus Jakarta Sans', sans-serif);
+}
+
+.login-form-header p {
+  color: var(--text-muted, #64748b);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+/* Role Selector Tabs */
+.role-toggle {
+  display: flex;
+  background: var(--bg-surface-tertiary, #f1f5f9);
+  padding: 4px;
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 18px;
+  border: 1px solid var(--border-light, #e2e8f0);
+}
+
+.role-toggle-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--transition-fast, 0.2s);
+  font-family: var(--font-sans, inherit);
+}
+
+.role-toggle-btn.active {
+  background: var(--bg-surface, #ffffff);
+  color: var(--meil-navy, #0b2545);
+  font-weight: 700;
+  border: 1px solid var(--border-medium, #cbd5e1);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Demo Credentials Box */
+.demo-creds-box {
+  background: var(--bg-surface-secondary, #f8fafc);
+  border: 1px solid var(--border-light, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 14px;
+  margin-bottom: 18px;
+}
+
+.demo-creds-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.725rem;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.demo-chip-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.demo-chip-group::-webkit-scrollbar {
+  width: 4px;
+}
+
+.demo-chip-group::-webkit-scrollbar-thumb {
+  background: var(--border-medium, #cbd5e1);
+  border-radius: 4px;
+}
+
+.demo-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-light, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s);
+}
+
+.demo-chip:hover {
+  border-color: var(--meil-navy, #0b2545);
+  background: #f0f7ff;
+}
+
+.demo-chip-label {
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.demo-chip-creds {
+  font-family: monospace;
+  color: var(--text-muted, #64748b);
+  font-size: 0.7rem;
+}
+
+/* Login Form Elements */
+.login-form-group {
+  margin-bottom: 14px;
+}
+
+.login-form-group label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary, #475569);
+  margin-bottom: 5px;
+}
+
+.form-control-login {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 0.875rem;
+  border: 1px solid var(--border-medium, #cbd5e1);
+  border-radius: var(--radius-md, 8px);
+  outline: none;
+  background: var(--bg-surface, #ffffff);
+  color: var(--text-primary, #0f172a);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+  font-family: var(--font-sans, inherit);
+}
+
+.form-control-login:focus {
+  border-color: var(--meil-navy, #0b2545);
+  box-shadow: 0 0 0 3px rgba(11, 37, 69, 0.12);
+}
+
+.password-input-wrapper {
+  position: relative;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle-btn:hover {
+  color: var(--text-primary, #0f172a);
+}
+
+.login-form-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  font-size: 0.8rem;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--text-muted, #64748b);
+}
+
+.btn-login-submit {
+  width: 100%;
+  padding: 11px 16px;
+  background: var(--meil-navy, #0b2545);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-sans, inherit);
+  transition: background-color var(--transition-fast, 0.2s), transform 0.1s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-login-submit:hover {
+  background: var(--meil-navy-light, #133b5c);
+}
+
+.btn-login-submit:active {
+  transform: translateY(1px);
+}
+
+.access-pending-banner {
+  background-color: var(--color-danger-bg, #fef2f2);
+  border: 1px solid var(--color-danger-border, #fecaca);
+  color: var(--color-danger, #dc2626);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive Login Screen */
+@media (max-width: 900px) {
+  .login-container {
+    max-width: 780px;
+    grid-template-columns: 1fr 1.05fr;
+  }
+  
+  .login-brand-panel {
+    padding: 32px 24px;
+  }
+
+  .login-form-panel {
+    padding: 32px 24px;
+  }
+
+  .brand-features {
+    margin: 20px 0;
+    gap: 12px;
+  }
+
+  .brand-feature-text p {
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .login-body {
+    padding: 14px 10px;
+  }
+
+  .login-container {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+    border-radius: var(--radius-lg, 12px);
+  }
+
+  /* Keep MEIL ESG Branding prominently visible at the top */
+  .login-brand-panel {
+    padding: 22px 20px 16px 20px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .brand-header {
+    justify-content: center;
+    text-align: left;
+  }
+
+  .brand-features,
+  .brand-footer {
+    display: none; /* Hide long marketing bullets on mobile so the sign-in form is immediately accessible */
+  }
+
+  .login-form-panel {
+    padding: 24px 20px;
+  }
+
+  .login-form-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .role-toggle-btn {
+    padding: 8px 6px;
+    font-size: 0.75rem;
+  }
+
+  .btn-login-submit {
+    min-height: 44px;
+    font-size: 0.95rem;
+  }
+
+  .form-control-login {
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 380px) {
+  .login-body {
+    padding: 8px 6px;
+  }
+
+  .login-container {
+    border-radius: var(--radius-md, 8px);
+  }
+
+  .brand-title {
+    font-size: 1.25rem;
+  }
+
+  .brand-logo-img {
+    height: 36px;
+  }
+
+  .role-toggle {
+    flex-direction: column;
+  }
+
+  .login-form-panel {
+    padding: 20px 14px;
+  }
+}

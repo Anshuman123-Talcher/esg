@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0b2545">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PS8 ESG">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <meta name="description" content="Centralized MEIL ESG & BRSR Reporting Software for Megha Engineering and Infrastructures Limited and its group companies.">
+  <title>MEIL ESG & BRSR Centralized Enterprise Reporting</title>
+  
+  <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Application Stylesheets -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/print.css">
+  <!-- Session Gate: ensure authenticated before rendering -->
+  <script>
+    if (!localStorage.getItem('MEIL_ESG_AUTH_SESSION_V2')) {
+      window.location.replace('login.html');
+    }
+  </script>
+</head>
+<body>
+
+
+
+  <div class="app-container">
+    <!-- Sidebar Backdrop for Mobile -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+    <!-- Application Sidebar -->
+    <aside id="app-sidebar" class="app-sidebar" aria-label="Sidebar Navigation">
+      <div class="sidebar-header">
+        <a href="javascript:void(0)" class="sidebar-brand" onclick="ui.navigateTo('dashboard')">
+          <img src="assets/meil-logo.png" alt="MEIL Logo" class="brand-logo-img">
+          <div class="brand-info">
+            <span class="brand-name">MEIL ESG</span>
+            <span class="brand-sub">Centralized BRSR</span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Contextual Scope Card (Main Company vs Subsidiary) -->
+      <div id="sidebar-scope-container"></div>
+
+      <!-- Navigation Links -->
+      <nav id="sidebar-nav" class="sidebar-nav"></nav>
+
+      <!-- Sidebar Footer (Active User Profile) -->
+      <div id="sidebar-user-profile" class="sidebar-footer"></div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <!-- Top Application Header -->
+      <header class="app-header">
+        <div class="header-left">
+          <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" aria-label="Toggle Sidebar Menu">
+            <i data-lucide="menu"></i>
+          </button>
+
+          <nav class="breadcrumb-container" aria-label="Breadcrumb">
+            <a href="javascript:void(0)" class="breadcrumb-item" onclick="ui.navigateTo('dashboard')">MEIL System</a>
+            <span class="breadcrumb-separator">/</span>
+            <span id="breadcrumb-active" class="breadcrumb-active">Dashboard</span>
+          </nav>
+        </div>
+
+
+
+        <div class="header-right">
+          <!-- Notification Bell -->
+          <button id="header-notif-btn" class="header-icon-btn" aria-label="Notifications" title="Notifications">
+            <i data-lucide="bell"></i>
+            <span id="header-notif-badge" class="icon-badge">2</span>
+          </button>
+
+          <!-- Notification Drawer Dropdown -->
+          <div id="notification-drawer" class="notification-drawer" role="region" aria-label="Notifications Drawer">
+            <div class="notification-header">
+              <span>Notifications &amp; Alerts</span>
+              <a href="javascript:void(0)" onclick="store.markAllNotificationsRead(); ui.renderNotificationsDrawer();" style="font-size:11px; color:var(--meil-navy); text-decoration:none; font-weight:600;">Mark all read</a>
+            </div>
+            <div id="notification-drawer-list" class="notification-list"></div>
+            <div style="padding:10px 16px; border-top:1px solid var(--border-light); text-align:center;">
+              <a href="javascript:void(0)" onclick="ui.navigateTo('notifications')" style="font-size:12px; color:var(--meil-navy); font-weight:600; text-decoration:none;">View All Notifications &rarr;</a>
+            </div>
+          </div>
+
+          <!-- Profile Button -->
+          <button class="header-action-btn" onclick="ui.navigateTo(auth.isMainAdmin() ? 'company' : 'profile')" title="Company Profile">
+            <i data-lucide="user" style="width:15px; height:15px;"></i>
+            <span>Profile</span>
+          </button>
+
+          <!-- Settings Button -->
+          <button class="header-action-btn" onclick="ui.navigateTo('settings')" title="Settings">
+            <i data-lucide="settings" style="width:15px; height:15px;"></i>
+            <span>Settings</span>
+          </button>
+
+          <!-- Sign Out Button (Slightly larger, clearly visible, comfortable click target) -->
+          <button id="header-signout-btn" class="header-signout-btn" onclick="auth.logout()" title="Sign Out of session">
+            <i data-lucide="log-out" style="width:15px; height:15px;"></i>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Viewport (Dynamic Content Switcher) -->
+      <section id="content-viewport" class="content-viewport" tabindex="-1"></section>
+    </main>
+  </div>
+
+  <!-- Shared Modal Backdrop & Dialog Container -->
+  <div id="modal-backdrop" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div id="modal-dialog-content"></div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Application Scripts in Dependency Order -->
+  <script src="js/data/defaultData.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/workflow.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- PWA Service Worker & Install Prompt Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+          .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+      });
+    }
+
+    // Capture install prompt for custom button
+    let deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      const installBtn = document.getElementById('pwa-install-btn');
+      if (installBtn) installBtn.style.display = 'flex';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      const installBtn = document.getElementById('pwa-install-btn');
+      if (installBtn) installBtn.style.display = 'none';
+      console.log('[PWA] App installed successfully');
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const installBtn = document.getElementById('pwa-install-btn');
+      if (installBtn) {
+        installBtn.addEventListener('click', async () => {
+          if (!deferredInstallPrompt) return;
+          deferredInstallPrompt.prompt();
+          const { outcome } = await deferredInstallPrompt.userChoice;
+          console.log('[PWA] Install outcome:', outcome);
+          deferredInstallPrompt = null;
+          installBtn.style.display = 'none';
+        });
+      }
+    });
+  </script>
+</body>
+</html>

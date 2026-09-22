@@ -1,0 +1,121 @@
+/* MEIL ESG & BRSR Enterprise Design System */
+:root {
+  /* Brand Palette - MEIL Corporate */
+  --meil-navy: #0b2545;
+  --meil-navy-light: #133b5c;
+  --meil-navy-dark: #07192f;
+  --meil-red: #c8102e;
+  --meil-red-hover: #a50b23;
+  --meil-red-light: #fee2e2;
+  --meil-blue: #1d4ed8;
+  --meil-blue-light: #dbeafe;
+  
+  /* Semantic Colors */
+  --color-success: #059669;
+  --color-success-bg: #ecfdf5;
+  --color-success-border: #a7f3d0;
+  
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  
+  --color-info: #0284c7;
+  --color-info-bg: #f0f9ff;
+  --color-info-border: #bae6fd;
+  
+  --color-purple: #7c3aed;
+  --color-purple-bg: #f5f3ff;
+  --color-purple-border: #ddd6fe;
+
+  /* Neutral Surface & Borders */
+  --bg-app: #f4f6f9;
+  --bg-surface: #ffffff;
+  --bg-surface-secondary: #f8fafc;
+  --bg-surface-tertiary: #f1f5f9;
+  
+  --border-light: #e2e8f0;
+  --border-medium: #cbd5e1;
+  --border-dark: #94a3b8;
+  
+  /* Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+  --text-brand: #0b2545;
+  
+  /* Status Badge Colors */
+  --status-draft-color: #475569;
+  --status-draft-bg: #f1f5f9;
+  --status-draft-border: #cbd5e1;
+  
+  --status-submitted-color: #0369a1;
+  --status-submitted-bg: #e0f2fe;
+  --status-submitted-border: #7dd3fc;
+  
+  --status-review-color: #b45309;
+  --status-review-bg: #fef3c7;
+  --status-review-border: #fcd34d;
+  
+  --status-approved-color: #047857;
+  --status-approved-bg: #d1fae5;
+  --status-approved-border: #6ee7b7;
+  
+  --status-correction-color: #b91c1c;
+  --status-correction-bg: #fee2e2;
+  --status-correction-border: #fca5a5;
+  
+  --status-resubmitted-color: #6d28d9;
+  --status-resubmitted-bg: #ede9fe;
+  --status-resubmitted-border: #c4b5fd;
+  
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'Plus Jakarta Sans', var(--font-sans);
+  
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  
+  /* Layout Sizing */
+  --sidebar-width: 270px;
+  --sidebar-collapsed-width: 72px;
+  --header-height: 68px;
+  
+  /* Shadows & Elevation */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  
+  /* Border Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+  
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 350ms cubic-bezier(0.16, 1, 0.3, 1);
+  
+  /* Z-Indices */
+  --z-base: 1;
+  --z-header: 100;
+  --z-sidebar: 200;
+  --z-dropdown: 500;
+  --z-modal-backdrop: 1000;
+  --z-modal: 1050;
+  --z-toast: 2000;
+}

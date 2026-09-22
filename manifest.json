@@ -1,0 +1,28 @@
+{
+  "name": "PS8 ESG & BRSR Reporting",
+  "short_name": "PS8 ESG",
+  "description": "Centralized MEIL ESG & BRSR Reporting Software for Megha Engineering and Infrastructures Limited group companies.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b2545",
+  "theme_color": "#0b2545",
+  "categories": ["business", "productivity", "finance"],
+  "lang": "en-IN",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

@@ -1,0 +1,128 @@
+/* Print & PDF Export Stylesheet */
+@media print {
+  /* Hide Interactive and Navigation Chrome */
+  .demo-bar,
+  .app-sidebar,
+  .app-header,
+  .sidebar-backdrop,
+  .btn,
+  .filter-bar,
+  .page-actions,
+  .toast-container,
+  .notification-drawer,
+  .tabs-nav,
+  .demo-reset-btn {
+    display: none !important;
+  }
+
+  body, html, .app-container, .app-main, .content-viewport {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .content-viewport {
+    padding: 15mm !important;
+  }
+
+  /* Printable Report Header */
+  .print-header {
+    display: block !important;
+    border-bottom: 2px solid #0b2545;
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+  }
+
+  .print-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .print-logo {
+    height: 48px;
+  }
+
+  .print-title {
+    font-size: 20pt;
+    font-weight: bold;
+    color: #0b2545;
+    margin-top: 10px;
+  }
+
+  .print-meta {
+    font-size: 9pt;
+    color: #555555;
+    display: flex;
+    gap: 20px;
+    margin-top: 6px;
+  }
+
+  /* Table formatting for print */
+  .table-responsive {
+    border: 1px solid #cccccc !important;
+    overflow: visible !important;
+    page-break-inside: auto;
+  }
+
+  .table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .table th, .table td {
+    border: 1px solid #dddddd !important;
+    padding: 6px 10px !important;
+    font-size: 9pt !important;
+    color: #000000 !important;
+  }
+
+  .table th {
+    background-color: #f1f5f9 !important;
+    font-weight: bold !important;
+  }
+
+  .table tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .card {
+    border: 1px solid #cccccc !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    margin-bottom: 20px !important;
+  }
+
+  .kpi-card {
+    border: 1px solid #cccccc !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  /* Print Signatures Block */
+  .print-sign-block {
+    display: flex !important;
+    justify-content: space-between;
+    margin-top: 40px;
+    page-break-inside: avoid;
+  }
+
+  .sign-line {
+    width: 200px;
+    border-top: 1px solid #333333;
+    padding-top: 5px;
+    text-align: center;
+    font-size: 9pt;
+    font-weight: bold;
+  }
+}
+
+/* Screen defaults for print-only elements */
+.print-header,
+.print-sign-block {
+  display: none;
+}

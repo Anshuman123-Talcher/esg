@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#07172c">
+  <title>Sign In - Centralized ESG & BRSR Reporting System</title>
+  <link rel="icon" type="image/png" href="assets/meil-logo.png">
+
+  <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Application Styles -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body class="login-body">
+
+  <div class="login-container">
+    <!-- Left Branded Panel -->
+    <div class="login-brand-panel">
+      <div>
+        <div class="brand-header">
+          <img src="assets/meil-logo.png" alt="MEIL Logo" class="brand-logo-img">
+          <div>
+            <div class="brand-title">MEIL <span>ESG</span></div>
+            <div class="brand-subtitle">SEBI BRSR &amp; Sustainability Platform</div>
+          </div>
+        </div>
+
+        <div class="brand-features">
+          <div class="brand-feature-item">
+            <div class="brand-feature-icon">
+              <i data-lucide="scale" style="width:18px; height:18px;"></i>
+            </div>
+            <div class="brand-feature-text">
+              <h4>SEBI BRSR Core Compliance</h4>
+              <p>Mandatory disclosures covering General Disclosures, Management, and Principles 1 to 9 with statutory KPI verification.</p>
+            </div>
+          </div>
+
+          <div class="brand-feature-item">
+            <div class="brand-feature-icon">
+              <i data-lucide="sitemap" style="width:18px; height:18px;"></i>
+            </div>
+            <div class="brand-feature-text">
+              <h4>Multi-Entity Aggregation & Rollup</h4>
+              <p>Automated, formula-driven consolidation of Scope 1, 2, 3 carbon emissions, water, circular waste, and social governance metrics.</p>
+            </div>
+          </div>
+
+          <div class="brand-feature-item">
+            <div class="brand-feature-icon">
+              <i data-lucide="git-pull-request" style="width:18px; height:18px;"></i>
+            </div>
+            <div class="brand-feature-text">
+              <h4>Connected Multi-Tier Approval Workflow</h4>
+              <p>Sub-company draft saving, official submission, executive admin review, revision remarks, and verified sign-off.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="brand-footer">
+        <span><i data-lucide="check-circle-2" style="width:13px; height:13px; display:inline; vertical-align:middle;"></i> SEBI Core Circular Aligned</span>
+        <span>FY 2025-26 Active Cycle</span>
+      </div>
+    </div>
+
+    <!-- Right Form Panel -->
+    <div class="login-form-panel">
+      <div class="login-form-header">
+        <h2>Corporate Sign In</h2>
+        <p>Access your sustainability reporting portal</p>
+      </div>
+
+      <!-- Role Selection Toggle -->
+      <div class="role-toggle" role="tablist">
+        <button class="role-toggle-btn active" id="btn-role-main" type="button" role="tab">
+          <i data-lucide="shield" style="width:16px; height:16px;"></i>
+          <span>Main Company Admin</span>
+        </button>
+        <button class="role-toggle-btn" id="btn-role-sub" type="button" role="tab">
+          <i data-lucide="building-2" style="width:16px; height:16px;"></i>
+          <span>Sub-Company Admin</span>
+        </button>
+      </div>
+
+      <!-- 1-Click Demo Logins -->
+      <div class="demo-creds-box">
+        <div class="demo-creds-header">
+          <span>1-Click Demo Accounts</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button type="button" class="btn btn-sm btn-outline" id="btn-reset-demo" style="font-size:10px; padding:2px 8px; border-radius:4px;" title="Reset LocalStorage state to initial demo seed data">
+              <i data-lucide="rotate-ccw" style="width:11px; height:11px;"></i> Reset Data
+            </button>
+            <i data-lucide="zap" style="width:13px; height:13px; color:#d97706;"></i>
+          </div>
+        </div>
+        <div class="demo-chip-group" id="demo-chips-container">
+          <!-- Dynamically populated based on active role tab -->
+        </div>
+      </div>
+
+      <!-- Error / Notice Banner -->
+      <div id="login-error-banner" class="access-pending-banner" style="display:none;">
+        <i data-lucide="alert-circle" style="width:18px; height:18px; flex-shrink:0;"></i>
+        <span id="login-error-text">Invalid email or password.</span>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" autocomplete="on">
+        <div class="login-form-group">
+          <label for="email">Corporate Email Address</label>
+          <input type="email" id="email" class="form-control-login" placeholder="name@company.com" required autocomplete="email">
+        </div>
+
+        <div class="login-form-group">
+          <label for="password">Password</label>
+          <div class="password-input-wrapper">
+            <input type="password" id="password" class="form-control-login" placeholder="••••••••" required autocomplete="current-password">
+            <button type="button" class="password-toggle-btn" id="btn-toggle-password" title="Toggle visibility" aria-label="Toggle password visibility">
+              <i data-lucide="eye" id="password-eye-icon" style="width:16px; height:16px;"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="login-form-options">
+          <label class="remember-me">
+            <input type="checkbox" id="remember-me" checked>
+            <span>Remember session</span>
+          </label>
+          <span style="font-size:11px; color:#64748b;">Default password: <strong>admin</strong></span>
+        </div>
+
+        <button type="submit" class="btn-login-submit" id="btn-submit-login">
+          <span>Sign In to Dashboard</span>
+          <i data-lucide="arrow-right" style="width:16px; height:16px;"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container" style="position:fixed; bottom:20px; right:20px; z-index:9999;"></div>
+
+  <!-- Core State & Auth Scripts -->
+  <script src="js/data/defaultData.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/auth.js"></script>
+
+  <script>
+    // Lucide Icon Initializer
+    function refreshIcons() {
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+    }
+
+    // Redirect if already authenticated
+    if (auth.isAuthenticated()) {
+      window.location.replace("index.html");
+    }
+
+    let activeRoleTab = "MAIN_ADMIN";
+
+    const mainDemoAccounts = [
+      { name: "P. V. Krishna Reddy", email: "admin@meil.in", role: "Managing Director & Group Sustainability Head" },
+      { name: "Vikramaditya Roy", email: "admin@apexgroup.com", role: "Group Chief Sustainability Officer" }
+    ];
+
+    const subDemoAccounts = [
+      { name: "Praveen Kumar", company: "Olectra Greentech Ltd.", email: "olectra@meil.in", status: "Submitted" },
+      { name: "Rameshwar Rao", company: "MEIL Hydro & Power Ltd.", email: "hydro@meil.in", status: "Approved" },
+      { name: "Sanjay Verma", company: "Megha City Gas Ltd.", email: "citygas@meil.in", status: "Correction Required" },
+      { name: "Marco Rossi", company: "Drillmec Energy", email: "drillmec@meil.in", status: "Draft" },
+      { name: "Col. D. S. Rathore", company: "MEIL Highways Ltd.", email: "transport@meil.in", status: "Approved" }
+    ];
+
+    function renderDemoChips() {
+      const container = document.getElementById("demo-chips-container");
+      if (!container) return;
+
+      if (activeRoleTab === "MAIN_ADMIN") {
+        container.innerHTML = mainDemoAccounts.map(acc => `
+          <div class="demo-chip" onclick="selectDemoAccount('${acc.email}', 'admin')">
+            <div class="demo-chip-label">
+              <i data-lucide="shield-check" style="width:13px; height:13px; color:#0b2545;"></i>
+              <span>${acc.name}</span>
+            </div>
+            <div class="demo-chip-creds">${acc.email}</div>
+          </div>
+        `).join("");
+      } else {
+        container.innerHTML = subDemoAccounts.map(acc => `
+          <div class="demo-chip" onclick="selectDemoAccount('${acc.email}', 'admin')">
+            <div class="demo-chip-label">
+              <i data-lucide="building" style="width:13px; height:13px; color:#059669;"></i>
+              <span>${acc.company}</span>
+            </div>
+            <div class="demo-chip-creds">${acc.email}</div>
+          </div>
+        `).join("");
+      }
+
+      refreshIcons();
+    }
+
+    function selectDemoAccount(email, password) {
+      document.getElementById("email").value = email;
+      document.getElementById("password").value = password;
+      handleLogin(email, password);
+    }
+
+    // Role Tab Click Handlers
+    document.getElementById("btn-role-main").addEventListener("click", () => {
+      activeRoleTab = "MAIN_ADMIN";
+      document.getElementById("btn-role-main").classList.add("active");
+      document.getElementById("btn-role-sub").classList.remove("active");
+      renderDemoChips();
+      document.getElementById("email").value = "admin@meil.in";
+      document.getElementById("password").value = "admin";
+    });
+
+    document.getElementById("btn-role-sub").addEventListener("click", () => {
+      activeRoleTab = "SUB_ADMIN";
+      document.getElementById("btn-role-sub").classList.add("active");
+      document.getElementById("btn-role-main").classList.remove("active");
+      renderDemoChips();
+      document.getElementById("email").value = "olectra@meil.in";
+      document.getElementById("password").value = "admin";
+    });
+
+    // Password visibility toggle
+    document.getElementById("btn-toggle-password").addEventListener("click", () => {
+      const pwd = document.getElementById("password");
+      const icon = document.getElementById("password-eye-icon");
+      if (pwd.type === "password") {
+        pwd.type = "text";
+        icon.setAttribute("data-lucide", "eye-off");
+      } else {
+        pwd.type = "password";
+        icon.setAttribute("data-lucide", "eye");
+      }
+      refreshIcons();
+    });
+
+    // Form submit
+    document.getElementById("login-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      handleLogin(email, password);
+    });
+
+    function handleLogin(email, password) {
+      const errorBanner = document.getElementById("login-error-banner");
+      const errorText = document.getElementById("login-error-text");
+      errorBanner.style.display = "none";
+
+      const res = auth.login(email, password);
+      if (res.success) {
+        showToast(`Welcome back, ${res.user.name}`, "success");
+        setTimeout(() => {
+          window.location.href = "index.html";
+        }, 300);
+      } else {
+        errorText.innerText = res.message;
+        errorBanner.style.display = "flex";
+        showToast(res.message, "danger");
+        refreshIcons();
+      }
+    }
+
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      toast.className = `alert alert-${type === 'danger' ? 'danger' : (type === 'success' ? 'success' : 'info')}`;
+      toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+      toast.style.marginBottom = "8px";
+      toast.innerHTML = `<span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.remove();
+      }, 3500);
+    }
+
+    // Reset Demo State Button
+    document.getElementById("btn-reset-demo").addEventListener("click", () => {
+      if (confirm("Reset application data back to factory defaults?")) {
+        store.resetToDefault();
+        showToast("State reset to initial demo seeds.", "success");
+        renderDemoChips();
+      }
+    });
+
+    // Initialize Default State
+    document.addEventListener("DOMContentLoaded", () => {
+      renderDemoChips();
+      document.getElementById("email").value = "admin@meil.in";
+      document.getElementById("password").value = "admin";
+      refreshIcons();
+    });
+  </script>
+</body>
+</html>
