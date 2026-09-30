@@ -153,13 +153,15 @@ class AuthManager {
 
   getActiveSubsidiaryId() {
     if (this.isSubAdmin()) {
-      return this.session.assignedSubsidiaryId || 'sub-3';
+      return this.session ? (this.session.assignedSubsidiaryId || 'sub-3') : 'sub-3';
     }
-    return this.session ? (this.session.assignedSubsidiaryId || 'sub-3') : 'sub-3';
+    // Main Company Admin context defaults to null or designated entity
+    return this.session ? this.session.assignedSubsidiaryId : null;
   }
 
   getActiveSubsidiary() {
-    return store.getSubsidiaryById(this.getActiveSubsidiaryId());
+    const id = this.getActiveSubsidiaryId();
+    return id ? store.getSubsidiaryById(id) : null;
   }
 
   /**
@@ -173,7 +175,7 @@ class AuthManager {
     if (this.isMainAdmin()) {
       return true;
     }
-    // Sub-Company Admin can only access their explicitly assigned subsidiary
+    // Sub-Company Admin is strictly locked to their session-authenticated assigned subsidiary
     return this.getActiveSubsidiaryId() === subsidiaryId;
   }
 
@@ -199,52 +201,6 @@ class AuthManager {
     }
     const sub = this.getActiveSubsidiary();
     return sub ? sub.name : 'Assigned Subsidiary';
-  }
-
-  /**
-   * Switch active role / view (Allowed for Main Admin to inspect as subsidiary,
-   * but strictly restricted for Sub Admin to prevent unauthorized elevation)
-   */
-  switchRole(newRole, subsidiaryId = null) {
-    if (this.isSubAdmin() && newRole === 'main_admin') {
-      alert("Access Denied: Sub-Company Admins cannot elevate to Main Company Admin.");
-      return;
-    }
-
-    if (!this.session) {
-      this.session = { role: 'main_admin', name: 'MEIL Administrator', email: 'admin@meil.in' };
-    }
-
-    this.session.role = newRole;
-
-    if (newRole === 'main_admin') {
-      this.session.name = 'P. V. Krishna Reddy';
-      this.session.title = 'Managing Director & Group Sustainability Head';
-      this.session.email = 'admin@meil.in';
-    } else {
-      if (subsidiaryId) this.session.assignedSubsidiaryId = subsidiaryId;
-      const sub = store.getSubsidiaryById(this.session.assignedSubsidiaryId);
-      this.session.name = sub ? sub.leadAdminName : 'Subsidiary Admin';
-      this.session.title = `Sustainability Officer - ${sub ? sub.shortName : 'Subsidiary'}`;
-      this.session.email = sub ? sub.leadAdminEmail : 'subadmin@meil.in';
-    }
-
-    this.saveSession();
-  }
-
-  setAssignedSubsidiary(subsidiaryId) {
-    if (this.isSubAdmin() && this.session.assignedSubsidiaryId !== subsidiaryId) {
-      alert("Access Denied: Sub-Company Admins cannot switch assigned entities.");
-      return;
-    }
-    this.session.assignedSubsidiaryId = subsidiaryId;
-    if (this.isSubAdmin()) {
-      const sub = store.getSubsidiaryById(subsidiaryId);
-      this.session.name = sub ? sub.leadAdminName : 'Subsidiary Admin';
-      this.session.title = `Sustainability Officer - ${sub ? sub.shortName : 'Subsidiary'}`;
-      this.session.email = sub ? sub.leadAdminEmail : 'subadmin@meil.in';
-    }
-    this.saveSession();
   }
 }
 

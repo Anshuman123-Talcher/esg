@@ -37,40 +37,6 @@ class UIManager {
   }
 
   bindGlobalEvents() {
-    // Top Demo Role Switcher
-    const roleSelect = document.getElementById('demo-role-select');
-    const subSelect = document.getElementById('demo-sub-select');
-    const subLabel = document.getElementById('demo-sub-label');
-
-    if (roleSelect) {
-      roleSelect.value = auth.getCurrentRole();
-      if (auth.isSubAdmin()) {
-        roleSelect.disabled = true;
-        roleSelect.title = "Sub-Company Admins are restricted to assigned subsidiary scope";
-      }
-      roleSelect.addEventListener('change', (e) => {
-        const newRole = e.target.value;
-        auth.switchRole(newRole);
-      });
-    }
-
-    if (subSelect) {
-      subSelect.value = auth.getActiveSubsidiaryId();
-      if (auth.isSubAdmin()) {
-        subSelect.style.display = 'inline-block';
-        if (subLabel) subLabel.style.display = 'inline-block';
-        subSelect.disabled = true;
-        subSelect.title = "Access restricted to your assigned entity only";
-      } else {
-        subSelect.style.display = 'inline-block';
-        if (subLabel) subLabel.style.display = 'inline-block';
-        subSelect.disabled = false;
-      }
-      subSelect.addEventListener('change', (e) => {
-        auth.setAssignedSubsidiary(e.target.value);
-      });
-    }
-
     // Reset Demo State Button
     const resetBtn = document.getElementById('demo-reset-btn');
     if (resetBtn) {
@@ -343,19 +309,6 @@ class UIManager {
             <div class="dropdown-user-name">${user.name}</div>
             <div class="dropdown-user-email">${user.email}</div>
           </div>
-          <a class="profile-dropdown-item" onclick="ui.navigateTo('settings')">
-            <i data-lucide="user" style="width:14px; height:14px;"></i>
-            <span>Profile</span>
-          </a>
-          <a class="profile-dropdown-item" onclick="ui.navigateTo('settings')">
-            <i data-lucide="settings" style="width:14px; height:14px;"></i>
-            <span>Settings</span>
-          </a>
-          <a class="profile-dropdown-item" onclick="ui.showDemoRoleModal()">
-            <i data-lucide="arrow-left-right" style="width:14px; height:14px;"></i>
-            <span>Switch Role / Entity</span>
-          </a>
-          <div class="profile-dropdown-divider"></div>
           <a class="profile-dropdown-item" onclick="auth.logout()" style="color:var(--color-danger); font-weight:600;">
             <i data-lucide="log-out" style="width:14px; height:14px; color:var(--color-danger);"></i>
             <span>Sign Out</span>
@@ -385,18 +338,6 @@ class UIManager {
 
     if (breadcrumbActive) {
       breadcrumbActive.textContent = this.getViewTitle(this.currentView);
-    }
-
-    // Sync top demo selectors
-    const roleSelect = document.getElementById('demo-role-select');
-    if (roleSelect) roleSelect.value = auth.getCurrentRole();
-
-    const subSelect = document.getElementById('demo-sub-select');
-    if (subSelect) {
-      subSelect.value = auth.getActiveSubsidiaryId();
-      subSelect.style.display = auth.isMainAdmin() ? 'none' : 'inline-block';
-      const subLabel = document.getElementById('demo-sub-label');
-      if (subLabel) subLabel.style.display = auth.isMainAdmin() ? 'none' : 'inline-block';
     }
 
     this.updateHeaderBadges();
@@ -1375,7 +1316,6 @@ class UIManager {
                 <th>BUs</th>
                 <th>Projects</th>
                 <th>ESG Index</th>
-                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -1400,11 +1340,6 @@ class UIManager {
                       </div>
                       <span style="font-weight:700;">${s.complianceScore}</span>
                     </div>
-                  </td>
-                  <td>
-                    <button class="btn btn-sm btn-outline" onclick="auth.switchRole('sub_admin', '${s.id}'); ui.navigateTo('dashboard');">
-                      <i data-lucide="external-link"></i> View as Admin
-                    </button>
                   </td>
                 </tr>
               `).join('')}
@@ -1618,11 +1553,6 @@ class UIManager {
                             <button class="btn btn-sm btn-outline" onclick="ui.handleResetPassword('${u.id}', '${u.email}')" title="Reset Password to default (admin)">
                               <i data-lucide="key-round"></i> Reset Pwd
                             </button>
-                            ${!isMainRole ? `
-                              <button class="btn btn-sm btn-outline" onclick="auth.switchRole('sub_admin', '${u.subsidiaryId}'); ui.navigateTo('dashboard');" title="Preview as Subsidiary">
-                                <i data-lucide="external-link"></i> View as
-                              </button>
-                            ` : ''}
                           </div>
                         </td>
                       </tr>
@@ -3154,13 +3084,10 @@ class UIManager {
         <div class="card">
           <div class="card-header"><h3 class="card-title"><i data-lucide="sliders"></i> System Controls</h3></div>
           <div class="card-body">
-            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Reset test state, switch role context, or sign out.</p>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">System diagnostics and session management.</p>
             <div style="display:flex;flex-direction:column;gap:12px;">
               <button class="btn btn-outline" onclick="store.resetToDefault();ui.showToast('Data reset to defaults!','info');ui.renderCurrentView();">
                 <i data-lucide="rotate-ccw"></i> Reset Local Demo State
-              </button>
-              <button class="btn btn-secondary" onclick="ui.showDemoRoleModal()">
-                <i data-lucide="arrow-left-right"></i> Change Role or Subsidiary Scope
               </button>
               <button class="btn btn-outline" style="color:var(--color-danger);border-color:var(--color-danger);" onclick="auth.logout()">
                 <i data-lucide="log-out"></i> Sign Out of Session
@@ -3526,42 +3453,7 @@ class UIManager {
   }
 
   showDemoRoleModal() {
-    const modalBackdrop = document.getElementById('modal-backdrop');
-    const modalContent = document.getElementById('modal-dialog-content');
-    if (!modalBackdrop || !modalContent) return;
-
-    const subs = store.getSubsidiaries();
-
-    modalContent.innerHTML = `
-      <div class="modal-dialog">
-        <div class="modal-header">
-          <h2 class="modal-title"><i data-lucide="arrow-left-right"></i> Fast Demo Role Switcher</h2>
-          <button class="modal-close-btn" onclick="ui.closeModals()"><i data-lucide="x"></i></button>
-        </div>
-        <div class="modal-body">
-          <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
-            Switch effortlessly between the two authorized roles to test approval, correction, and consolidation workflows:
-          </p>
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            <button class="btn btn-brand-red btn-lg" onclick="auth.switchRole('main_admin'); ui.closeModals();">
-              <i data-lucide="shield-check"></i> Switch to Main Company Admin (MEIL Central)
-            </button>
-            <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-top:8px;">
-              Or Switch to Sub-Company Admin:
-            </div>
-            ${subs.map(s => `
-              <button class="btn btn-outline" style="justify-content:flex-start; text-align:left;" onclick="auth.switchRole('sub_admin', '${s.id}'); ui.closeModals();">
-                <i data-lucide="building"></i>
-                <span><strong>${s.shortName}</strong> (${s.leadAdminName})</span>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    `;
-
-    modalBackdrop.classList.add('open');
-    this.refreshIcons();
+    // Role/subsidiary switching has been permanently disabled in accordance with enterprise access control policies.
   }
 
   closeModals() {
