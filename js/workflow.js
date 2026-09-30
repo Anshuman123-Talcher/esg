@@ -142,7 +142,154 @@ class WorkflowManager {
     ui.showToast(`Updated data resubmitted for ${year}. Status: Resubmitted (Under Review).`, "success");
     ui.renderCurrentView();
   }
+
+  // =========================================================================
+  // MODULE 4: PROJECT-LEVEL ESG SUBMISSION WORKFLOW
+  // Flow: Data Entry -> Save Draft -> Submit -> Review -> Approve / Correction / Reject -> Consolidation
+  // =========================================================================
+
+  saveProjectDraft(projectId, year, category, data) {
+    const proj = store.saveProjectDraft(projectId, year, category, data);
+    if (proj) {
+      ui.showToast(`Draft saved for project ${proj.name} (${proj.code}). Unsubmitted changes stored locally.`, "success");
+      ui.renderCurrentView();
+    }
+  }
+
+  submitProjectData(projectId, year) {
+    const user = auth.getUserInfo();
+    const proj = store.submitProjectData(projectId, year, user.name);
+    if (proj) {
+      ui.showToast(`Project ${proj.code} submitted for Central Admin review. Status: Submitted.`, "success");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  openProjectReviewModal(projectId, year = 'FY 2025-26') {
+    const proj = store.getProjectById(projectId);
+    if (!proj) return;
+    ui.showProjectReviewModal(proj, year);
+  }
+
+  approveProjectSubmission(projectId, year = 'FY 2025-26', notes = "Verified and approved for group consolidation.") {
+    const user = auth.getUserInfo();
+    const proj = store.setProjectSubmissionStatus(projectId, year, "Approved", notes, user.name);
+    if (proj) {
+      ui.showToast(`Project ${proj.code} APPROVED! Data is now Included in Consolidation.`, "success");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  requestProjectCorrection(projectId, year = 'FY 2025-26', comment = "") {
+    if (!comment || comment.trim().length === 0) {
+      ui.showToast("Please provide specific reviewer comments for required correction.", "warning");
+      return;
+    }
+    const user = auth.getUserInfo();
+    const proj = store.setProjectSubmissionStatus(projectId, year, "Correction Required", comment, user.name);
+    if (proj) {
+      ui.showToast(`Correction requested for project ${proj.code}. Excluded from consolidation until revised.`, "warning");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  rejectProjectSubmission(projectId, year = 'FY 2025-26', reason = "") {
+    if (!reason || reason.trim().length === 0) {
+      ui.showToast("Please provide formal justification for rejecting this project filing.", "warning");
+      return;
+    }
+    const user = auth.getUserInfo();
+    const proj = store.setProjectSubmissionStatus(projectId, year, "Rejected", reason, user.name);
+    if (proj) {
+      ui.showToast(`Project ${proj.code} REJECTED. Excluded from consolidation.`, "danger");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  resubmitProjectData(projectId, year) {
+    const user = auth.getUserInfo();
+    const proj = store.submitProjectData(projectId, year, user.name);
+    if (proj) {
+      ui.showToast(`Project ${proj.code} resubmitted for verification. Status: Resubmitted (Under Review).`, "success");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  // =========================================================================
+  // SUB-COMPANY SDG CONTRIBUTION WORKFLOW LIFECYCLE
+  // Sub Admin: Save Draft -> Submit -> Resubmit Corrected
+  // Main Admin: Review -> Approve -> Request Correction / Reject
+  // =========================================================================
+
+  saveSDGDraft(formData) {
+    const user = auth.getUserInfo();
+    const record = store.saveSDGContribution(formData, false, user.name);
+    if (record) {
+      ui.showToast(`SDG ${record.sdgNumber} initiative draft "${record.initiativeName}" saved locally.`, "success");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  submitSDGContribution(formDataOrId) {
+    const user = auth.getUserInfo();
+    let record = null;
+    if (typeof formDataOrId === 'string') {
+      record = store.submitSDGContribution(formDataOrId, user.name);
+    } else {
+      record = store.saveSDGContribution(formDataOrId, true, user.name);
+    }
+    if (record) {
+      ui.showToast(`SDG ${record.sdgNumber} initiative "${record.initiativeName}" submitted for Central MEIL Admin review. Status: Under Review.`, "success");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  approveSDGContribution(id, remarks = "Verified and approved by Central MEIL ESG Committee.") {
+    const user = auth.getUserInfo();
+    const record = store.approveSDGContribution(id, remarks, user.name);
+    if (record) {
+      ui.showToast(`SDG ${record.sdgNumber} contribution APPROVED! Data is now active in consolidated Group analytics.`, "success");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  requestSDGCorrection(id, comment) {
+    if (!comment || comment.trim().length === 0) {
+      ui.showToast("Please provide specific reviewer comments for required correction.", "warning");
+      return;
+    }
+    const user = auth.getUserInfo();
+    const record = store.requestSDGCorrection(id, comment, user.name);
+    if (record) {
+      ui.showToast(`Correction requested for SDG ${record.sdgNumber} initiative. Subsidiary notified with audit remarks.`, "warning");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
+
+  rejectSDGContribution(id, reason) {
+    if (!reason || reason.trim().length === 0) {
+      ui.showToast("Please provide formal justification for rejecting this filing.", "warning");
+      return;
+    }
+    const user = auth.getUserInfo();
+    const record = store.rejectSDGContribution(id, reason, user.name);
+    if (record) {
+      ui.showToast(`SDG ${record.sdgNumber} contribution REJECTED. Excluded from consolidated analytics.`, "danger");
+      ui.closeModals();
+      ui.renderCurrentView();
+    }
+  }
 }
 
 // Global Singleton Workflow Instance
 const workflow = new WorkflowManager();
+

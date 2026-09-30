@@ -578,6 +578,339 @@ class ChartEngine {
       }
     });
   }
+
+  // =========================================================================
+  // MODULE 11: SDG ANALYTICS CHARTS
+  // =========================================================================
+
+  renderSDGCoverageChart(canvasId, coverageData) {
+    this.destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    if (!coverageData) { coverageData = (store.getSDGAnalytics().coverage || []); }
+    if (!coverageData || !coverageData.length) return;
+
+    const labels = coverageData.map(c => `SDG ${c.id}`);
+    const indicatorCounts = coverageData.map(c => c.indicatorsCount);
+    const projectCounts = coverageData.map(c => c.projectsCount);
+    const colors = coverageData.map(c => c.color || this.colors.meilNavy);
+
+    this.instances[canvasId] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Mapped ESG Indicators',
+            data: indicatorCounts,
+            backgroundColor: colors,
+            borderRadius: 4
+          },
+          {
+            label: 'Contributing Projects',
+            data: projectCounts,
+            backgroundColor: this.colors.meilNavyLight,
+            borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { family: 'Inter', size: 11 } } },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const idx = items[0].dataIndex;
+                return `${coverageData[idx].code}: ${coverageData[idx].name}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 } } },
+          y: { beginAtZero: true, grid: { color: this.colors.gridLines }, ticks: { precision: 0 } }
+        }
+      }
+    });
+  }
+
+  renderSDGProgressChart(canvasId, coverageData) {
+    this.destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    if (!coverageData) { coverageData = (store.getSDGAnalytics().coverage || []); }
+    if (!coverageData || !coverageData.length) return;
+
+    // Filter to top active SDGs or all
+    const sorted = [...coverageData].sort((a,b) => b.progressPct - a.progressPct).slice(0, 10);
+    const labels = sorted.map(c => `${c.code} (${c.name.slice(0, 16)}...)`);
+    const progress = sorted.map(c => c.progressPct);
+    const colors = sorted.map(c => c.color || this.colors.meilNavy);
+
+    this.instances[canvasId] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Progress %',
+          data: progress,
+          backgroundColor: colors,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              afterLabel: (item) => `Status: ${sorted[item.dataIndex].status} | Target: ${sorted[item.dataIndex].target}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            max: 130,
+            grid: { color: this.colors.gridLines },
+            ticks: { callback: v => `${v}%` }
+          },
+          y: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } }
+        }
+      }
+    });
+  }
+
+  renderSDGSubsidiaryChart(canvasId, bySubsidiaryData) {
+    this.destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    if (!bySubsidiaryData) { bySubsidiaryData = (store.getSDGAnalytics().bySubsidiary || []); }
+    if (!bySubsidiaryData || !bySubsidiaryData.length) return;
+
+    const labels = bySubsidiaryData.map(s => s.shortName);
+    const data = bySubsidiaryData.map(s => s.contributingSDGsCount);
+
+    this.instances[canvasId] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: [this.colors.meilNavy, this.colors.emerald, this.colors.meilRed, this.colors.amber, this.colors.purple],
+          borderWidth: 2,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, padding: 12 } },
+          tooltip: {
+            callbacks: {
+              label: (item) => ` ${item.label}: ${item.raw} SDGs aligned`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  renderSDGProjectChart(canvasId, subsidiaryId = null) {
+    this.destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    const projs = store.getProjects(subsidiaryId && subsidiaryId !== 'all' ? subsidiaryId : null);
+    if (!projs || !projs.length) return;
+
+    // Sort by SDG count descending, take top 8
+    const sorted = [...projs].sort((a,b) => ((b.sdgs||[]).length) - ((a.sdgs||[]).length)).slice(0, 8);
+    const labels = sorted.map(p => `${p.code} (${p.city || p.location.split(',')[0]})`);
+    const sdgCounts = sorted.map(p => (p.sdgs || []).length);
+    const esgScores = sorted.map(p => p.esgCompletion || 80);
+
+    this.instances[canvasId] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Mapped SDGs Count',
+            data: sdgCounts,
+            backgroundColor: this.colors.meilNavy,
+            borderRadius: 4,
+            yAxisID: 'y'
+          },
+          {
+            label: 'Project ESG Score (%)',
+            data: esgScores,
+            backgroundColor: this.colors.emerald,
+            borderRadius: 4,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { family: 'Inter', size: 11 } } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 } } },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            beginAtZero: true,
+            title: { display: true, text: 'SDGs Count', font: { size: 10 } },
+            ticks: { precision: 0 }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            beginAtZero: true,
+            max: 100,
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: 'ESG Score %', font: { size: 10 } },
+            ticks: { callback: v => `${v}%` }
+          }
+        }
+      }
+    });
+  }
+
+  renderSDGBusinessUnitChart(canvasId, subsidiaryId = null) {
+    this.destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    const bus = store.getBusinessUnits(subsidiaryId && subsidiaryId !== 'all' ? subsidiaryId : null);
+    if (!bus || !bus.length) return;
+
+    const labels = bus.map(b => b.name.length > 22 ? b.name.slice(0, 20) + '...' : b.name);
+    const projCounts = bus.map(b => b.projectCount || 0);
+
+    this.instances[canvasId] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Contributing Projects',
+          data: projCounts,
+          backgroundColor: [this.colors.meilNavy, this.colors.meilRed, this.colors.emerald, this.colors.amber, this.colors.purple, this.colors.meilBlue],
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { beginAtZero: true, grid: { color: this.colors.gridLines }, ticks: { precision: 0 } },
+          y: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } }
+        }
+      }
+    });
+  }
+
+  renderBUComparisonChart(canvasId, busList, year = 'FY 2025-26') {
+    this.destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    // Accept either a BU list array or a subsidiary ID string
+    if (!busList || typeof busList === 'string') {
+      const subId = (typeof busList === 'string' && busList !== 'all') ? busList : null;
+      busList = store.getBusinessUnits(subId);
+    }
+    if (!busList || !busList.length) return;
+
+    const labels = busList.map(b => b.name.length > 20 ? b.name.slice(0, 18) + '...' : b.name);
+    const esgScores = busList.map(b => {
+      const buESG = store.getBusinessUnitESG(b.id, year);
+      return buESG ? buESG.esgCompletion : 70;
+    });
+    const brsrScores = busList.map(b => {
+      const buESG = store.getBusinessUnitESG(b.id, year);
+      return buESG ? buESG.brsrCompletion : 65;
+    });
+
+    this.instances[canvasId] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'ESG Completion %',
+            data: esgScores,
+            backgroundColor: this.colors.emerald,
+            borderRadius: 4
+          },
+          {
+            label: 'BRSR Readiness %',
+            data: brsrScores,
+            backgroundColor: this.colors.meilNavyLight,
+            borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { font: { family: 'Inter', size: 11 } } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 } } },
+          y: { beginAtZero: true, max: 100, grid: { color: this.colors.gridLines } }
+        }
+      }
+    });
+  }
+
+  renderProjectRollupChart(canvasId, projects) {
+    this.destroyChart(canvasId);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx || !projects) return;
+
+    const approvedCount = projects.filter(p => p.submissionStatus === 'Approved').length;
+    const submittedCount = projects.filter(p => p.submissionStatus === 'Submitted').length;
+    const correctionCount = projects.filter(p => p.submissionStatus === 'Correction Required').length;
+    const draftCount = projects.filter(p => p.submissionStatus === 'Draft').length;
+
+    this.instances[canvasId] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Approved (In Consolidation)', 'Submitted (Under Review)', 'Correction Required', 'Draft (Pending)'],
+        datasets: [{
+          data: [approvedCount, submittedCount, correctionCount, draftCount],
+          backgroundColor: [this.colors.emerald, this.colors.cyan, this.colors.amber, this.colors.slate],
+          borderWidth: 2,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, padding: 10 } }
+        }
+      }
+    });
+  }
 }
 
 // Global Singleton Chart Instance

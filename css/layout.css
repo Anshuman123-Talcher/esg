@@ -7,6 +7,7 @@
 
 html, body {
   height: 100%;
+  overflow: hidden;
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
@@ -19,10 +20,9 @@ html, body {
 /* App Wrapper */
 .app-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   width: 100%;
-  position: relative;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 
@@ -37,7 +37,8 @@ html, body {
   flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   transition: width var(--transition-normal);
-  position: relative;
+  height: 100vh;
+  overflow-y: auto;
   z-index: var(--z-sidebar);
 }
 
@@ -414,8 +415,8 @@ html, body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 0;
   height: 100vh;
+  min-width: 0;
   overflow: hidden;
   background-color: var(--bg-app);
 }
@@ -429,6 +430,8 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
+  position: sticky;
+  top: 0;
   z-index: var(--z-header);
   box-shadow: var(--shadow-xs);
   flex-shrink: 0;
