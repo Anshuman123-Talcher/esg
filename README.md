@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # MEIL Centralized ESG & BRSR Reporting Platform
 
 Enterprise sustainability governance, ESG accounting, SEBI BRSR compliance, and hierarchical consolidation platform for Megha Engineering and Infrastructures Limited (MEIL) and its group subsidiaries.
@@ -154,3 +155,6 @@ http://localhost:5000/login.html
 ```
 - Sign in as **Main Admin** (`admin@meil.in`) to access group-wide dashboards, consolidation, approval workflows, and audit logs. Notice Scan-to-BRSR is removed from the Admin module.
 - Sign in as **Sub-Company Admin** (`olectra@meil.in`) to access subsidiary data entry, project ESG monitoring, SDG contributions, and operational **Scan-to-BRSR** bill/document OCR ingestion.
+=======
+# esg
+>>>>>>> b143e739da7a3cb77441b01edddfe453ee157a9d
