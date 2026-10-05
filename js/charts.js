@@ -915,4 +915,5 @@ class ChartEngine {
 
 // Global Singleton Chart Instance
 const chartEngine = new ChartEngine();
+window.chartEngine = chartEngine;
 

@@ -50,63 +50,63 @@ class AuthManager {
   }
 
   /**
-   * Authenticate user credentials against registered accounts in store
+   * Authenticate user credentials against backend REST API or fallback to registered accounts
    */
-  login(email, password) {
+  async login(email, password) {
     if (!email || !password) {
       return { success: false, message: "Please provide both email and password." };
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const users = store.getUsers();
-    const user = users.find(u => u.email.toLowerCase() === cleanEmail);
 
-    if (!user) {
-      return { success: false, message: "User account with this email address was not found." };
+    // 1. Authoritative backend authentication ONLY (no offline or hardcoded bypasses)
+    try {
+      if (typeof api !== 'undefined' && api.login) {
+        const apiRes = await api.login(cleanEmail, password);
+        if (apiRes.success && apiRes.user) {
+          const user = apiRes.user;
+          const normalizedRole = (user.role === "MAIN_ADMIN" || user.role === "main_admin") ? "main_admin" : "sub_admin";
+          const subId = user.assignedSubsidiaryId || user.subsidiaryId || (normalizedRole === "sub_admin" ? "sub-3" : null);
+
+          this.session = {
+            userId: user.userId || user.id,
+            name: user.name,
+            email: user.email,
+            role: normalizedRole,
+            rawRole: user.rawRole || user.role,
+            title: user.title || (normalizedRole === "main_admin" ? "Main Company Admin" : "Sub-Company Admin"),
+            assignedSubsidiaryId: subId,
+            loginTimestamp: new Date().toISOString(),
+            serverAuthenticated: true
+          };
+
+          this.saveSession();
+          return { success: true, user: this.session };
+        } else if (apiRes.isNetworkError) {
+          return { success: false, message: "Unable to connect to the server. Please try again later." };
+        } else {
+          return { success: false, message: apiRes.message || "Invalid credentials. Please verify your password." };
+        }
+      } else {
+        return { success: false, message: "Unable to connect to the server. Please try again later." };
+      }
+    } catch (apiErr) {
+      console.error("[Auth] Backend login communication error:", apiErr);
+      return { success: false, message: "Unable to connect to the server. Please try again later." };
     }
-
-    if (user.status === "INACTIVE" || user.status === "SUSPENDED" || user.accessStatus === "Suspended" || user.accessStatus === "Revoked") {
-      return { success: false, message: "Your access has been suspended or deactivated. Contact Main Company Admin." };
-    }
-
-    if (user.password !== password) {
-      return { success: false, message: "Invalid credentials. Please verify your password." };
-    }
-
-    // Determine normalized role
-    const normalizedRole = (user.role === "MAIN_ADMIN" || user.role === "main_admin") ? "main_admin" : "sub_admin";
-    const subId = user.subsidiaryId || (normalizedRole === "sub_admin" ? "sub-3" : null);
-
-    this.session = {
-      userId: user.id,
-      name: user.name,
-      email: user.email,
-      role: normalizedRole,
-      title: user.title || (normalizedRole === "main_admin" ? "Main Company Admin" : "Sub-Company Admin"),
-      assignedSubsidiaryId: subId,
-      loginTimestamp: new Date().toISOString()
-    };
-
-    user.lastLogin = "Just now";
-    store.addAuditLog(user.name, "LOGIN", `Successful login as ${normalizedRole === "main_admin" ? "Main Admin" : "Sub Admin"}`);
-    this.saveSession();
-
-    return { success: true, user: this.session };
-  }
-
-  /**
-   * 1-Click login helper for demo experience
-   */
-  quickLogin(email) {
-    return this.login(email, "admin");
   }
 
   /**
    * Sign out active session and return to login page
    */
-  logout() {
+  async logout() {
     if (this.session) {
-      store.addAuditLog(this.session.name, "LOGOUT", `User logged out from session`);
+      if (typeof api !== 'undefined' && api.logout) {
+        try { await api.logout(); } catch (e) { /* ignore */ }
+      }
+      if (typeof store !== 'undefined' && store.addAuditLog) {
+        store.addAuditLog(this.session.name, "LOGOUT", `User logged out from session`);
+      }
     }
     this.session = null;
     this.saveSession();
@@ -206,3 +206,4 @@ class AuthManager {
 
 // Global Singleton Auth Instance
 const auth = new AuthManager();
+window.auth = auth;

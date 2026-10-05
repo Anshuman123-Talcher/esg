@@ -14,6 +14,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize UI & Router
   ui.init();
 
+  // Authoritative background synchronization from PostgreSQL backend
+  if (typeof store !== 'undefined' && store.syncFromBackend) {
+    store.syncFromBackend().then(() => {
+      if (ui && ui.renderCurrentView) {
+        ui.renderCurrentView();
+      }
+    });
+  }
+
   // Handle ESC key to close open modals
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {

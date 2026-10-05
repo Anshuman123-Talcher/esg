@@ -713,6 +713,14 @@ textarea.form-control {
   display: flex;
 }
 
+#modal-dialog-content {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .modal-dialog {
   background-color: var(--bg-surface);
   border-radius: var(--radius-xl);

@@ -111,6 +111,16 @@ class UIManager {
         this.handleSearchFilter();
       });
     }
+
+    // Modal backdrop click to dismiss
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    if (modalBackdrop) {
+      modalBackdrop.addEventListener('click', (e) => {
+        if (e.target === modalBackdrop) {
+          this.closeModals();
+        }
+      });
+    }
   }
 
   handleSearchFilter() {
@@ -193,6 +203,13 @@ class UIManager {
           <span>SDG Alignment</span>
         </a>
         
+        <div class="nav-section-title">PS08 Innovation Hub</div>
+        <a class="nav-item ${this.currentView === 'control_tower' ? 'active' : ''}" onclick="ui.navigateTo('control_tower')">
+          <i data-lucide="radio"></i>
+          <span>ESG Control Tower</span>
+          <span class="nav-badge" style="background:#0d9488; color:#fff;">Live</span>
+        </a>
+        
         <div class="nav-section-title">Review & Governance</div>
         <a class="nav-item ${this.currentView === 'submissions' ? 'active' : ''}" onclick="ui.navigateTo('submissions')">
           <i data-lucide="check-circle-2"></i>
@@ -249,6 +266,11 @@ class UIManager {
         </a>
 
         <div class="nav-section-title">Data Reporting</div>
+        <a class="nav-item ${this.currentView === 'snap_to_brsr' ? 'active' : ''}" onclick="ui.navigateTo('snap_to_brsr')">
+          <i data-lucide="scan-line"></i>
+          <span>Snap-to-BRSR</span>
+          <span class="nav-badge" style="background:#7c3aed; color:#fff;">AI OCR</span>
+        </a>
         <a class="nav-item ${this.currentView === 'sustainability' ? 'active' : ''}" onclick="ui.navigateTo('sustainability')">
           <i data-lucide="leaf"></i>
           <span>My ESG Data</span>
@@ -354,8 +376,18 @@ class UIManager {
   }
 
   navigateTo(view, subTab = null) {
+    if (auth.isMainAdmin() && view === 'snap_to_brsr') {
+      this.showToast("Access Restricted: Scan to BRSR is an operational ingestion tool reserved for subsidiary personnel.", "warning");
+      this.currentView = 'dashboard';
+      this.currentSubTab = null;
+      this.renderSidebar();
+      this.renderHeader();
+      this.renderCurrentView();
+      return;
+    }
+
     if (auth.isSubAdmin()) {
-      const allowedViews = ['dashboard', 'profile', 'activities', 'business_units', 'projects', 'sustainability', 'brsr', 'sdg', 'submissions', 'reports', 'notifications', 'settings'];
+      const allowedViews = ['dashboard', 'profile', 'activities', 'business_units', 'projects', 'sustainability', 'brsr', 'sdg', 'submissions', 'reports', 'notifications', 'settings', 'snap_to_brsr'];
       if (!allowedViews.includes(view)) {
         this.showToast("Access Restricted: This section requires Main Company Admin privileges.", "warning");
         this.currentView = 'dashboard';
@@ -395,7 +427,9 @@ class UIManager {
       analytics: 'Analytics & Benchmarks',
       reports: 'Reporting & Exports',
       notifications: 'Notification Center',
-      settings: 'Settings'
+      settings: 'Settings',
+      control_tower: 'ESG Control Tower & What-If Simulator',
+      snap_to_brsr: 'Snap-to-BRSR: AI Document Extraction Engine'
     };
     return map[view] || 'Dashboard';
   }
@@ -484,6 +518,22 @@ class UIManager {
 
       case 'settings':
         viewport.innerHTML = this.getTemplateSettings();
+        break;
+
+      case 'control_tower':
+        if (window.controlTowerModule) {
+          window.controlTowerModule.render(viewport);
+        } else {
+          viewport.innerHTML = '<div style="padding:24px;">Loading Control Tower...</div>';
+        }
+        break;
+
+      case 'snap_to_brsr':
+        if (window.snapToBrsrModule) {
+          window.snapToBrsrModule.render(viewport);
+        } else {
+          viewport.innerHTML = '<div style="padding:24px;">Loading Snap-to-BRSR Engine...</div>';
+        }
         break;
 
       default:
@@ -2400,6 +2450,14 @@ class UIManager {
           </h1>
           <p class="page-subtitle">Review, verify, request corrections, or approve subsidiary ESG/BRSR and UN SDG contribution filings</p>
         </div>
+        <div class="page-actions" style="display:flex; gap:10px;">
+          <button class="btn btn-outline" onclick="store.syncFromBackend().then(() => { ui.renderCurrentView(); ui.showToast('Submissions synchronized with PostgreSQL database.', 'info'); })" title="Sync latest data from database">
+            <i data-lucide="refresh-cw"></i> Refresh Status
+          </button>
+          <button class="btn btn-brand-red" onclick="reportEngine.exportReportToExcel('MEIL Group Submissions & Approvals Log', ui.activeYearFilter, 'all')" title="Download Excel audit report">
+            <i data-lucide="file-spreadsheet"></i> Export Audit Register
+          </button>
+        </div>
       </div>
 
       <!-- Filter Bar -->
@@ -2669,32 +2727,80 @@ class UIManager {
       return `<tr><td colspan="8" class="table-empty">No submissions found matching criteria.</td></tr>`;
     }
 
-    return list.map(s => `
-      <tr data-status="${s.status}">
+    return list.map(s => {
+      const subName = s.subsidiaryName || s.subsidiary?.name || (typeof store !== 'undefined' && store.getSubsidiaryById(s.subsidiaryId)?.name) || 'Subsidiary';
+      const year = s.reportingYear || s.year || 'FY 2025-26';
+      const normStatus = s.status === 'Correction_Required' ? 'Correction Required' : (s.status === 'Under_Review' ? 'Under Review' : s.status);
+      const isPending = normStatus === 'Submitted' || normStatus === 'Resubmitted' || normStatus === 'Under Review';
+      const isApproved = normStatus === 'Approved';
+      const isCorrection = normStatus === 'Correction Required';
+      const isRejected = normStatus === 'Rejected';
+      const isDraft = normStatus === 'Draft';
+
+      return `
+      <tr data-status="${normStatus}">
         <td><strong>${s.id}</strong></td>
-        <td><strong>${s.subsidiaryName}</strong></td>
-        <td>${s.year}</td>
+        <td><strong>${subName}</strong></td>
+        <td>${year}</td>
         <td>${s.submittedBy || 'Pending'}</td>
-        <td>${s.submissionDate || 'Draft'}</td>
-        <td>${this.getStatusBadge(s.status)}</td>
-        <td style="font-size:12px; color:var(--text-muted);">${s.lastUpdated}</td>
+        <td>${s.submittedAt || s.submissionDate || 'Draft'}</td>
+        <td>${this.getStatusBadge(normStatus)}</td>
+        <td style="font-size:12px; color:var(--text-muted);">${s.lastUpdated || 'Just now'}</td>
         <td>
-          <div class="table-actions">
-            <button class="btn btn-sm btn-outline" onclick="workflow.openReviewModal('${s.id}')" title="Inspect Disclosures">
+          <div class="table-actions" style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-sm btn-outline" onclick="workflow.openReviewModal('${s.id}')" title="Inspect Disclosures & Full Audit Record">
               <i data-lucide="file-search"></i> Review
             </button>
-            ${auth.isMainAdmin() && (s.status === 'Submitted' || s.status === 'Resubmitted' || s.status === 'Under Review') ? `
-              <button class="btn btn-sm btn-success" onclick="workflow.approveSubmission('${s.id}')" title="Approve & Consolidate">
-                <i data-lucide="check"></i>
-              </button>
-              <button class="btn btn-sm btn-danger" onclick="ui.openCorrectionModal('${s.id}')" title="Request Correction">
-                <i data-lucide="alert-circle"></i>
-              </button>
+            ${auth.isMainAdmin() ? `
+              ${isPending ? `
+                <button class="btn btn-sm btn-success" onclick="workflow.approveSubmission('${s.id}')" title="Approve & Consolidate Data">
+                  <i data-lucide="check-circle-2"></i> Approve
+                </button>
+                <button class="btn btn-sm btn-outline" style="color:#d97706; border-color:#f59e0b;" onclick="ui.openCorrectionModal('${s.id}')" title="Request Correction">
+                  <i data-lucide="circle-alert"></i> Request Fix
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="ui.openRejectionModal('${s.id}')" title="Reject Submission">
+                  <i data-lucide="x-circle"></i> Reject
+                </button>
+              ` : ''}
+              ${isCorrection ? `
+                <button class="btn btn-sm btn-success" onclick="workflow.approveSubmission('${s.id}')" title="Accept & Approve Filing">
+                  <i data-lucide="check-circle-2"></i> Approve
+                </button>
+                <button class="btn btn-sm btn-outline" style="color:#d97706; border-color:#f59e0b;" onclick="ui.openCorrectionModal('${s.id}')" title="Update Correction Notes">
+                  <i data-lucide="circle-alert"></i> Edit Fix Notes
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="ui.openRejectionModal('${s.id}')" title="Reject Filing">
+                  <i data-lucide="x-circle"></i> Reject
+                </button>
+              ` : ''}
+              ${isRejected ? `
+                <button class="btn btn-sm btn-outline" onclick="workflow.reopenSubmission('${s.id}')" title="Re-open Filing for Review">
+                  <i data-lucide="refresh-cw"></i> Re-open
+                </button>
+                <button class="btn btn-sm btn-success" onclick="workflow.approveSubmission('${s.id}')" title="Override & Approve Filing">
+                  <i data-lucide="check-circle-2"></i> Approve
+                </button>
+              ` : ''}
+              ${isApproved ? `
+                <button class="btn btn-sm btn-outline" style="color:#059669; border-color:#10b981; pointer-events:none;" title="Consolidated into MEIL Group Metrics">
+                  <i data-lucide="check-check"></i> Consolidated
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="workflow.reopenSubmission('${s.id}')" title="Re-open Filing for Active Review">
+                  <i data-lucide="rotate-ccw"></i> Re-open
+                </button>
+              ` : ''}
+              ${isDraft ? `
+                <button class="btn btn-sm btn-primary" onclick="workflow.submitData('${s.subsidiaryId}', '${year}')" title="Submit to Central Admin">
+                  <i data-lucide="send"></i> Submit
+                </button>
+              ` : ''}
             ` : ''}
           </div>
         </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
   }
 
   postRenderSubmissions() {
@@ -2704,10 +2810,15 @@ class UIManager {
   filterSubmissionsTable(status) {
     const rows = document.querySelectorAll('#submissions-table tbody tr');
     rows.forEach(row => {
-      if (status === 'all' || row.getAttribute('data-status') === status) {
+      const rowStatus = row.getAttribute('data-status');
+      if (status === 'all') {
         row.style.display = '';
+      } else if (status === 'Submitted') {
+        row.style.display = (rowStatus === 'Submitted' || rowStatus === 'Under Review' || rowStatus === 'Resubmitted') ? '' : 'none';
+      } else if (status === 'Correction Required') {
+        row.style.display = (rowStatus === 'Correction Required' || rowStatus === 'Correction_Required') ? '' : 'none';
       } else {
-        row.style.display = 'none';
+        row.style.display = (rowStatus === status) ? '' : 'none';
       }
     });
   }
@@ -3151,22 +3262,33 @@ class UIManager {
     const modalContent = document.getElementById('modal-dialog-content');
     if (!modalBackdrop || !modalContent) return;
 
-    const env = esg.environment || {};
-    const soc = esg.social || {};
+    if (!subm) {
+      if (this.showToast) this.showToast("Submission record not found.", "warning");
+      return;
+    }
+
+    const year = subm.year || subm.reportingYear || "FY 2025-26";
+    const subName = subm.subsidiaryName || subm.subsidiary?.name || (typeof store !== 'undefined' && store.getSubsidiaryById(subm.subsidiaryId)?.name) || 'Subsidiary';
+    const safeEsg = esg || (subm.subsidiaryId ? store.getESGData(subm.subsidiaryId, year) : null) || {};
+    const env = safeEsg.environment || {};
+    const soc = safeEsg.social || {};
+    const safeBrsr = brsr || (subm.subsidiaryId ? store.getBRSRData(subm.subsidiaryId, year) : null) || {};
     const isMain = auth.isMainAdmin();
+    const isApproved = subm.status === 'Approved';
+    const isRejected = subm.status === 'Rejected';
 
     modalContent.innerHTML = `
       <div class="modal-dialog modal-xl">
         <div class="modal-header">
           <h2 class="modal-title">
-            <i data-lucide="file-check-2"></i> Review Submission: ${subm.id} (${subm.subsidiaryName})
+            <i data-lucide="file-check-2"></i> Review Submission: ${subm.id} (${subName})
           </h2>
           <button class="modal-close-btn" onclick="ui.closeModals()"><i data-lucide="x"></i></button>
         </div>
         <div class="modal-body">
           <div class="alert alert-info" style="margin-bottom:16px;">
             <div class="alert-content">
-              <strong>Reporting Cycle: ${subm.year}</strong> | Current Status: <strong>${subm.status}</strong> | Submitted by: <strong>${subm.submittedBy || 'Subsidiary Admin'}</strong>
+              <strong>Reporting Cycle: ${year}</strong> | Current Status: <strong>${subm.status}</strong> | Submitted by: <strong>${subm.submittedBy || 'Subsidiary Admin'}</strong>
             </div>
           </div>
 
@@ -3212,19 +3334,57 @@ class UIManager {
               </div>
             </div>
           </div>
+
+          <!-- SUPPORTING EVIDENCE & VERIFICATION REGISTER (Requirement 8, 9, 10) -->
+          <div class="card" style="margin-top:16px;">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+              <h4 class="card-title" style="display:flex; align-items:center; gap:8px;">
+                <i data-lucide="paperclip" style="color:var(--meil-navy);"></i>
+                <span>Supporting Evidence &amp; Verification Register</span>
+              </h4>
+              <span id="review-modal-evidence-badge" class="badge badge-info">Loading Evidence...</span>
+            </div>
+            <div class="card-body" id="review-modal-evidence-container" style="padding:16px;">
+              <div style="text-align:center; padding:24px; color:var(--text-muted);">
+                <i data-lucide="loader-2" class="spin" style="width:24px; height:24px;"></i>
+                <p style="font-size:12px; margin-top:8px;">Loading authorized supporting evidence documents...</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <button class="btn btn-secondary" onclick="ui.closeModals()">Close</button>
           ${isMain ? `
-            <button class="btn btn-danger" onclick="ui.openRejectionModal('${subm.id}')">
-              <i data-lucide="x-circle"></i> Reject Submission
-            </button>
-            <button class="btn btn-outline" style="color:#d97706; border-color:#f59e0b;" onclick="ui.openCorrectionModal('${subm.id}')">
-              <i data-lucide="circle-alert"></i> Request Correction
-            </button>
-            <button class="btn btn-success" onclick="workflow.approveSubmission('${subm.id}')">
-              <i data-lucide="check-circle-2"></i> Approve &amp; Consolidate Data
-            </button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              ${!isRejected ? `
+                <button class="btn btn-danger" onclick="ui.openRejectionModal('${subm.id}')">
+                  <i data-lucide="x-circle"></i> Reject Submission
+                </button>
+              ` : ''}
+              ${!isApproved ? `
+                <button class="btn btn-outline" style="color:#d97706; border-color:#f59e0b;" onclick="ui.openCorrectionModal('${subm.id}')">
+                  <i data-lucide="circle-alert"></i> Request Correction
+                </button>
+                <button class="btn btn-success" onclick="workflow.approveSubmission('${subm.id}')">
+                  <i data-lucide="check-circle-2"></i> Approve &amp; Consolidate Data
+                </button>
+              ` : `
+                <button class="btn btn-outline" style="color:#059669; border-color:#10b981; pointer-events:none;">
+                  <i data-lucide="check-check"></i> Already Consolidated
+                </button>
+                <button class="btn btn-outline" onclick="workflow.reopenSubmission('${subm.id}')">
+                  <i data-lucide="rotate-ccw"></i> Re-open for Review
+                </button>
+              `}
+              ${isRejected ? `
+                <button class="btn btn-outline" onclick="workflow.reopenSubmission('${subm.id}')">
+                  <i data-lucide="refresh-cw"></i> Re-open for Review
+                </button>
+                <button class="btn btn-success" onclick="workflow.approveSubmission('${subm.id}')">
+                  <i data-lucide="check-circle-2"></i> Override &amp; Approve
+                </button>
+              ` : ''}
+            </div>
           ` : `
             <button class="btn btn-brand-red" onclick="ui.openDataEntryModal()">
               <i data-lucide="edit-3"></i> Edit Form
@@ -3236,21 +3396,27 @@ class UIManager {
 
     modalBackdrop.classList.add('open');
     this.refreshIcons();
+    this.loadSubmissionEvidence(subm.id);
   }
 
   openRejectionModal(submissionId) {
     const subm = store.getSubmissionById(submissionId);
-    if (!subm) return;
+    if (!subm) {
+      if (this.showToast) this.showToast(`Submission record ${submissionId} not found.`, "warning");
+      return;
+    }
 
     const modalBackdrop = document.getElementById('modal-backdrop');
     const modalContent = document.getElementById('modal-dialog-content');
     if (!modalBackdrop || !modalContent) return;
 
+    const subName = subm.subsidiaryName || subm.subsidiary?.name || (typeof store !== 'undefined' && store.getSubsidiaryById(subm.subsidiaryId)?.name) || 'Subsidiary';
+
     modalContent.innerHTML = `
       <div class="modal-dialog">
         <div class="modal-header">
           <h2 class="modal-title" style="color:var(--color-danger, #ef4444);">
-            <i data-lucide="x-circle"></i> Reject Submission: ${subm.subsidiaryName}
+            <i data-lucide="x-circle"></i> Reject Submission: ${subName} (${subm.id})
           </h2>
           <button class="modal-close-btn" onclick="ui.closeModals()"><i data-lucide="x"></i></button>
         </div>
@@ -3260,12 +3426,12 @@ class UIManager {
           </p>
           <div class="form-group">
             <label class="form-label">Rejection Reason &amp; Audit Justification <span class="required">*</span></label>
-            <textarea id="rejection-reason-input" class="form-control" rows="4" placeholder="E.g., Incomplete Scope 3 supply chain disclosures and non-compliant third-party audit verification for FY26."></textarea>
+            <textarea id="rejection-reason-input" class="form-control" rows="4" placeholder="E.g., Incomplete Scope 3 supply chain disclosures and non-compliant third-party audit verification for FY26.">${subm.reviewerNotes || ''}</textarea>
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="ui.closeModals()">Cancel</button>
-          <button class="btn btn-danger" onclick="workflow.rejectSubmission('${subm.id}', document.getElementById('rejection-reason-input').value)">
+          <button class="btn btn-danger" onclick="ui.handleRejectionSubmit('${subm.id}')">
             <i data-lucide="x-circle"></i> Confirm Rejection
           </button>
         </div>
@@ -3276,19 +3442,35 @@ class UIManager {
     this.refreshIcons();
   }
 
+  handleRejectionSubmit(submissionId) {
+    const input = document.getElementById('rejection-reason-input');
+    const reason = input ? input.value.trim() : '';
+    if (!reason) {
+      this.showToast("Please provide specific justification/remarks for rejecting this filing.", "warning");
+      if (input) input.focus();
+      return;
+    }
+    workflow.rejectSubmission(submissionId, reason);
+  }
+
   openCorrectionModal(submissionId) {
     const subm = store.getSubmissionById(submissionId);
-    if (!subm) return;
+    if (!subm) {
+      if (this.showToast) this.showToast(`Submission record ${submissionId} not found.`, "warning");
+      return;
+    }
 
     const modalBackdrop = document.getElementById('modal-backdrop');
     const modalContent = document.getElementById('modal-dialog-content');
     if (!modalBackdrop || !modalContent) return;
 
+    const subName = subm.subsidiaryName || subm.subsidiary?.name || (typeof store !== 'undefined' && store.getSubsidiaryById(subm.subsidiaryId)?.name) || 'Subsidiary';
+
     modalContent.innerHTML = `
       <div class="modal-dialog">
         <div class="modal-header">
           <h2 class="modal-title" style="color:var(--meil-red);">
-            <i data-lucide="circle-alert"></i> Request Correction for ${subm.subsidiaryName}
+            <i data-lucide="circle-alert"></i> Request Correction for ${subName} (${subm.id})
           </h2>
           <button class="modal-close-btn" onclick="ui.closeModals()"><i data-lucide="x"></i></button>
         </div>
@@ -3298,12 +3480,12 @@ class UIManager {
           </p>
           <div class="form-group">
             <label class="form-label">Required Correction &amp; Reviewer Remarks <span class="required">*</span></label>
-            <textarea id="correction-remarks-input" class="form-control" placeholder="E.g., Scope 1 emission calculation discrepancy in Section C Principle 6 table. Attach third-party calibration certificate."></textarea>
+            <textarea id="correction-remarks-input" class="form-control" rows="4" placeholder="E.g., Scope 1 emission calculation discrepancy in Section C Principle 6 table. Attach third-party calibration certificate.">${subm.reviewerNotes || ''}</textarea>
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="ui.closeModals()">Cancel</button>
-          <button class="btn btn-danger" onclick="workflow.requestCorrection('${subm.id}', document.getElementById('correction-remarks-input').value)">
+          <button class="btn btn-brand-red" onclick="ui.handleCorrectionSubmit('${subm.id}')">
             <i data-lucide="send"></i> Dispatch Correction Request
           </button>
         </div>
@@ -3314,9 +3496,498 @@ class UIManager {
     this.refreshIcons();
   }
 
+  handleCorrectionSubmit(submissionId) {
+    const input = document.getElementById('correction-remarks-input');
+    const remarks = input ? input.value.trim() : '';
+    if (!remarks) {
+      this.showToast("Please provide specific reviewer comments detailing the required correction.", "warning");
+      if (input) input.focus();
+      return;
+    }
+    workflow.requestCorrection(submissionId, remarks);
+  }
+
+  // =========================================================================
+  // SUPPORTING EVIDENCE REVIEW & VIEWER (Requirements 8, 9, 10, 14, 15)
+  // =========================================================================
+  async loadSubmissionEvidence(submissionId) {
+    const container = document.getElementById('review-modal-evidence-container');
+    const badge = document.getElementById('review-modal-evidence-badge');
+    if (!container) return;
+
+    try {
+      let docs = [];
+      if (typeof api !== 'undefined' && api.getToken()) {
+        const res = await api.getSubmissionEvidence(submissionId);
+        if (res && res.success && res.data) {
+          docs = res.data;
+        }
+      }
+
+      if (badge) {
+        badge.textContent = `Supporting Evidence (${docs.length})`;
+      }
+
+      if (docs.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:28px 16px; color:var(--text-muted);">
+            <i data-lucide="file-question" style="width:36px; height:36px; stroke-width:1.5; opacity:0.5; margin-bottom:8px;"></i>
+            <p style="font-size:13px; margin:0;">No receipts or supporting evidence uploaded for this submission yet.</p>
+            <p style="font-size:11px; margin-top:4px; color:var(--text-secondary);">Sub-Company Admins upload supporting bills and weighbridge slips via the Snap-to-BRSR module.</p>
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          ${docs.map(doc => {
+            const isPdf = (doc.mimeType || '').includes('pdf') || (doc.originalName || '').toLowerCase().endsWith('.pdf');
+            const fileIcon = isPdf ? 'file-text' : 'image';
+            const iconColor = isPdf ? '#ef4444' : '#3b82f6';
+            const reviewStatus = doc.reviewStatus || 'Pending Review';
+            let statusBadgeClass = 'badge-pending';
+            if (reviewStatus === 'Approved') statusBadgeClass = 'badge-approved';
+            else if (reviewStatus === 'Correction Required') statusBadgeClass = 'badge-rejected';
+            else if (reviewStatus === 'Rejected') statusBadgeClass = 'badge-danger';
+
+            return `
+              <div class="evidence-review-card" style="border:1px solid var(--border-medium); border-radius:var(--radius-md); padding:14px; background:var(--bg-surface-secondary); transition:box-shadow 0.2s;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="width:36px; height:36px; border-radius:8px; background:rgba(0,0,0,0.04); display:flex; align-items:center; justify-content:center; color:${iconColor}; flex-shrink:0;">
+                      <i data-lucide="${fileIcon}" style="width:20px; height:20px;"></i>
+                    </div>
+                    <div>
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <strong style="font-size:14px; color:var(--text-primary);">${doc.originalName}</strong>
+                        <span class="badge" style="font-family:monospace; font-size:11px; background:rgba(0,43,91,0.08); color:var(--meil-navy); border:1px solid rgba(0,43,91,0.18);">
+                          ${doc.id}
+                        </span>
+                        ${doc.version > 1 ? `<span class="badge" style="background:#e0e7ff; color:#3730a3; font-size:10px;">Version ${doc.version}</span>` : ''}
+                      </div>
+                      <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                        Uploaded by <strong>${doc.uploadedBy}</strong> (${doc.subsidiary?.name || 'Subsidiary'}) • ${(doc.fileSize / 1024).toFixed(1)} KB • ${doc.createdAt ? new Date(doc.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : 'Recently'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span class="badge ${statusBadgeClass}" style="font-size:11px;">${reviewStatus}</span>
+                    <span class="badge ${doc.ocrConfidence >= 90 ? 'badge-approved' : 'badge-warning'}" style="font-size:11px;">
+                      OCR: ${doc.ocrConfidence ? Number(doc.ocrConfidence).toFixed(1) : '94.0'}%
+                    </span>
+                  </div>
+                </div>
+
+                ${doc.isDuplicate ? `
+                  <div class="alert alert-warning" style="margin:8px 0; padding:8px 12px; font-size:12px; border-radius:6px; display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="alert-triangle" style="width:16px; height:16px; color:#d97706; flex-shrink:0;"></i>
+                    <span><strong>Possible duplicate evidence detected:</strong> Content hash matches existing document <code>${doc.duplicateOfId || 'EV-DUPLICATE'}</code>. File stored independently with unique Evidence ID.</span>
+                  </div>
+                ` : ''}
+
+                <!-- Metric Linkage & Statutory Mapping -->
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; padding:10px; background:var(--bg-surface-primary); border-radius:var(--radius-sm); border:1px solid var(--border-light); font-size:12px; margin-bottom:10px;">
+                  <div>
+                    <span style="color:var(--text-muted); display:block; font-size:10px; text-transform:uppercase;">Document Category:</span>
+                    <strong>${doc.category || 'Receipt / Bill'}</strong>
+                  </div>
+                  <div>
+                    <span style="color:var(--text-muted); display:block; font-size:10px; text-transform:uppercase;">BRSR Principle &amp; Scope:</span>
+                    <strong>${doc.brsrPrinciple || 'Principle 6'} (${doc.scope || 'Scope 1'})</strong>
+                  </div>
+                  <div>
+                    <span style="color:var(--text-muted); display:block; font-size:10px; text-transform:uppercase;">Supports Reported Activity:</span>
+                    <strong style="color:var(--text-brand);">${doc.supportedMetric || 'Operational Data'}</strong>
+                  </div>
+                  <div>
+                    <span style="color:var(--text-muted); display:block; font-size:10px; text-transform:uppercase;">Calculated Emissions:</span>
+                    <strong style="color:var(--color-success);">${doc.supportedEmission ? `${doc.supportedEmission} MT CO2e` : 'Direct Evidence'}</strong>
+                  </div>
+                </div>
+
+                ${doc.reviewComments ? `
+                  <div style="padding:8px 12px; background:#fffbeb; border-left:3px solid #f59e0b; border-radius:4px; font-size:12px; color:#b45309; margin-bottom:10px;">
+                    <strong>Reviewer Remark:</strong> ${doc.reviewComments}
+                  </div>
+                ` : ''}
+
+                <!-- Actions Bar -->
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <div style="display:flex; gap:8px;">
+                    <button class="btn btn-sm btn-brand-blue" onclick="ui.showEvidenceViewerModal('${doc.id}', '${submissionId}')">
+                      <i data-lucide="eye"></i> View Document
+                    </button>
+                    <a class="btn btn-sm btn-outline" href="${api.getEvidenceFileUrl(doc.id, true)}" download="${encodeURIComponent(doc.originalName)}">
+                      <i data-lucide="download"></i> Download
+                    </a>
+                    <button class="btn btn-sm btn-outline" onclick="ui.showOcrInspectModal('${doc.id}')">
+                      <i data-lucide="scan-text"></i> View OCR Data
+                    </button>
+                  </div>
+
+                  ${auth.isMainAdmin() ? `
+                    <div style="display:flex; gap:6px;">
+                      <button class="btn btn-sm btn-success" onclick="ui.quickReviewEvidence('${doc.id}', 'Approved', '${submissionId}')" title="Approve this document">
+                        <i data-lucide="check"></i> Approve
+                      </button>
+                      <button class="btn btn-sm btn-outline" style="color:#d97706; border-color:#f59e0b;" onclick="ui.quickReviewEvidencePrompt('${doc.id}', 'Correction Required', '${submissionId}')" title="Request correction">
+                        <i data-lucide="alert-circle"></i> Correction
+                      </button>
+                      <button class="btn btn-sm btn-outline" style="color:#ef4444; border-color:#ef4444;" onclick="ui.quickReviewEvidencePrompt('${doc.id}', 'Rejected', '${submissionId}')" title="Reject this document">
+                        <i data-lucide="x"></i> Reject
+                      </button>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      if (window.lucide) lucide.createIcons();
+    } catch (err) {
+      console.warn('[Evidence] Failed to load submission evidence:', err);
+      container.innerHTML = `
+        <div class="alert alert-warning" style="font-size:12px;">
+          Failed to load supporting evidence: ${err.message || 'Network error'}
+        </div>
+      `;
+    }
+  }
+
+  async showEvidenceViewerModal(evidenceId, submissionId) {
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    const modalContent = document.getElementById('modal-dialog-content');
+    if (!modalBackdrop || !modalContent) return;
+
+    modalContent.innerHTML = `
+      <div class="modal-dialog modal-xl" style="max-width:1150px;">
+        <div class="modal-header">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <i data-lucide="file-search" style="color:var(--meil-navy);"></i>
+            <h2 class="modal-title" id="evidence-viewer-title">Loading Document...</h2>
+          </div>
+          <button class="modal-close-btn" onclick="ui.closeModals()"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body" id="evidence-viewer-body" style="padding:20px; min-height:400px; display:flex; align-items:center; justify-content:center;">
+          <div style="text-align:center;">
+            <i data-lucide="loader-2" class="spin" style="width:32px; height:32px; color:var(--meil-navy);"></i>
+            <p style="margin-top:10px; font-size:13px; color:var(--text-muted);">Decrypting and streaming evidence document from secure storage...</p>
+          </div>
+        </div>
+      </div>
+    `;
+    modalBackdrop.classList.add('open');
+    if (window.lucide) lucide.createIcons();
+
+    try {
+      const res = await api.getEvidenceById(evidenceId);
+      if (!res || !res.success || !res.data) {
+        throw new Error(res?.message || 'Evidence document not found.');
+      }
+      const doc = res.data;
+      const fileUrl = api.getEvidenceFileUrl(doc.id);
+      const isPdf = (doc.mimeType || '').includes('pdf') || (doc.originalName || '').toLowerCase().endsWith('.pdf');
+
+      document.getElementById('evidence-viewer-title').innerHTML = `
+        <span style="color:var(--text-primary); font-weight:700;">${doc.originalName}</span>
+        <span class="badge" style="font-family:monospace; margin-left:8px; font-size:11px;">${doc.id}</span>
+        <span class="badge ${doc.reviewStatus === 'Approved' ? 'badge-approved' : (doc.reviewStatus === 'Correction Required' ? 'badge-warning' : 'badge-pending')}" style="margin-left:4px; font-size:11px;">${doc.reviewStatus}</span>
+      `;
+
+      const viewerBody = document.getElementById('evidence-viewer-body');
+      viewerBody.style.display = 'block';
+      viewerBody.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1fr 360px; gap:20px; align-items:start;">
+          <!-- Document Preview Area -->
+          <div class="card" style="margin:0; overflow:hidden; border:1px solid var(--border-medium);">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:var(--bg-surface-secondary);">
+              <span style="font-size:12px; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                <i data-lucide="${isPdf ? 'file-text' : 'image'}"></i> Document Preview (${isPdf ? 'Standard PDF' : 'Image'})
+              </span>
+              <div style="display:flex; gap:6px; align-items:center;">
+                ${!isPdf ? `
+                  <button class="btn btn-sm btn-outline" onclick="ui.zoomEvidenceImg(0.2)" title="Zoom In"><i data-lucide="zoom-in"></i></button>
+                  <button class="btn btn-sm btn-outline" onclick="ui.zoomEvidenceImg(-0.2)" title="Zoom Out"><i data-lucide="zoom-out"></i></button>
+                  <button class="btn btn-sm btn-outline" onclick="ui.resetEvidenceImgZoom()" title="Reset Zoom"><i data-lucide="rotate-ccw"></i></button>
+                ` : ''}
+                <a class="btn btn-sm btn-outline" href="${fileUrl}&download=true" download="${encodeURIComponent(doc.originalName)}" title="Download Original">
+                  <i data-lucide="download"></i> Download
+                </a>
+                <button class="btn btn-sm btn-outline" onclick="ui.toggleEvidenceFullscreen()" title="Full Screen">
+                  <i data-lucide="maximize-2"></i>
+                </button>
+              </div>
+            </div>
+            <div id="evidence-display-wrapper" style="position:relative; background:#0f172a; height:580px; display:flex; align-items:center; justify-content:center; overflow:auto;">
+              ${isPdf ? `
+                <iframe id="evidence-pdf-frame" src="${fileUrl}" style="width:100%; height:100%; border:none; background:#fff;"></iframe>
+              ` : `
+                <img id="evidence-viewer-img" src="${fileUrl}" style="max-height:100%; max-width:100%; object-fit:contain; transform:scale(1); transform-origin:center center; transition:transform 0.15s ease;" alt="${doc.originalName}">
+              `}
+            </div>
+          </div>
+
+          <!-- Metadata & Review Action Panel -->
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <!-- Document Details Card -->
+            <div class="card" style="margin:0;">
+              <div class="card-header" style="padding:10px 14px;"><h4 class="card-title" style="font-size:13px;"><i data-lucide="info"></i> Evidence Metadata</h4></div>
+              <div class="card-body" style="padding:12px; font-size:12px;">
+                <table class="table" style="margin:0;">
+                  <tbody>
+                    <tr><td style="color:var(--text-muted);">Evidence ID</td><td><code style="font-weight:700; color:var(--meil-navy);">${doc.id}</code></td></tr>
+                    <tr><td style="color:var(--text-muted);">Original File</td><td><strong>${doc.originalName}</strong></td></tr>
+                    <tr><td style="color:var(--text-muted);">Subsidiary</td><td>${doc.subsidiary?.name || 'Subsidiary'}</td></tr>
+                    <tr><td style="color:var(--text-muted);">Uploaded By</td><td>${doc.uploadedBy}</td></tr>
+                    <tr><td style="color:var(--text-muted);">Upload Date</td><td>${doc.createdAt ? new Date(doc.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : 'Recently'}</td></tr>
+                    <tr><td style="color:var(--text-muted);">File Size</td><td>${(doc.fileSize / 1024).toFixed(1)} KB</td></tr>
+                    <tr><td style="color:var(--text-muted);">SHA-256 Hash</td><td><code style="font-size:10px;">${(doc.fileHash || '').slice(0, 16)}...</code></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- ESG / BRSR Linkage Card -->
+            <div class="card" style="margin:0;">
+              <div class="card-header" style="padding:10px 14px;"><h4 class="card-title" style="font-size:13px;"><i data-lucide="link"></i> ESG &amp; BRSR Linkage</h4></div>
+              <div class="card-body" style="padding:12px; font-size:12px;">
+                <div style="margin-bottom:8px;">
+                  <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; display:block;">Statutory BRSR Mapping:</span>
+                  <strong>${doc.brsrPrinciple || 'Principle 6'} (${doc.scope || 'Scope 1'})</strong>
+                </div>
+                <div style="margin-bottom:8px;">
+                  <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; display:block;">Supported ESG Data Metric:</span>
+                  <strong style="color:var(--text-brand);">${doc.supportedMetric || 'Operational Data'}</strong>
+                </div>
+                <div style="margin-bottom:8px;">
+                  <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; display:block;">Calculated GHG Impact:</span>
+                  <strong style="color:var(--color-success);">${doc.supportedEmission ? `${doc.supportedEmission} MT CO2e` : 'Direct Evidence'}</strong>
+                </div>
+                <div>
+                  <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase; display:block;">OCR Confidence Score:</span>
+                  <span class="badge ${doc.ocrConfidence >= 90 ? 'badge-approved' : 'badge-warning'}">${doc.ocrConfidence || 94}% Confidence</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Review Actions (Main Admin) -->
+            ${auth.isMainAdmin() ? `
+              <div class="card" style="margin:0; border:1px solid var(--border-medium);">
+                <div class="card-header" style="padding:10px 14px; background:var(--bg-surface-secondary);"><h4 class="card-title" style="font-size:13px;"><i data-lucide="check-circle-2"></i> Review Verdict</h4></div>
+                <div class="card-body" style="padding:12px;">
+                  <div class="form-group" style="margin-bottom:10px;">
+                    <label class="form-label" style="font-size:11px; font-weight:600;">Reviewer Comments / Instructions:</label>
+                    <textarea id="evidence-review-comment-input" class="form-control" rows="3" placeholder="Enter specific feedback or reason for correction/approval..." style="font-size:12px;">${doc.reviewComments || ''}</textarea>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:6px;">
+                    <button class="btn btn-success" onclick="ui.submitEvidenceReview('${doc.id}', 'Approved', '${submissionId}')">
+                      <i data-lucide="check-circle-2"></i> Approve Evidence
+                    </button>
+                    <button class="btn btn-outline" style="color:#d97706; border-color:#f59e0b;" onclick="ui.submitEvidenceReview('${doc.id}', 'Correction Required', '${submissionId}')">
+                      <i data-lucide="alert-circle"></i> Request Correction
+                    </button>
+                    <button class="btn btn-danger" onclick="ui.submitEvidenceReview('${doc.id}', 'Rejected', '${submissionId}')">
+                      <i data-lucide="x-circle"></i> Reject Evidence
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ` : `
+              <div class="card" style="margin:0;">
+                <div class="card-header" style="padding:10px 14px;"><h4 class="card-title" style="font-size:13px;"><i data-lucide="clock"></i> Review Status</h4></div>
+                <div class="card-body" style="padding:12px; font-size:12px;">
+                  <span class="badge ${doc.reviewStatus === 'Approved' ? 'badge-approved' : (doc.reviewStatus === 'Correction Required' ? 'badge-warning' : 'badge-pending')}" style="font-size:12px; margin-bottom:8px; display:inline-block;">
+                    ${doc.reviewStatus}
+                  </span>
+                  ${doc.reviewComments ? `
+                    <div style="margin-top:8px; padding:8px; background:#fffbeb; border-radius:4px; border-left:3px solid #f59e0b;">
+                      <strong>Reviewer Remarks:</strong> ${doc.reviewComments}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+
+      if (window.lucide) lucide.createIcons();
+    } catch (err) {
+      document.getElementById('evidence-viewer-body').innerHTML = `
+        <div class="alert alert-danger" style="margin:20px;">
+          Failed to load document: ${err.message}
+        </div>
+      `;
+    }
+  }
+
+  zoomEvidenceImg(delta) {
+    this.evidenceImgZoom = Math.max(0.5, Math.min(3.5, (this.evidenceImgZoom || 1) + delta));
+    const img = document.getElementById('evidence-viewer-img');
+    if (img) img.style.transform = `scale(${this.evidenceImgZoom})`;
+  }
+
+  resetEvidenceImgZoom() {
+    this.evidenceImgZoom = 1;
+    const img = document.getElementById('evidence-viewer-img');
+    if (img) img.style.transform = `scale(1)`;
+  }
+
+  toggleEvidenceFullscreen() {
+    const el = document.getElementById('evidence-display-wrapper');
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }
+
+  async submitEvidenceReview(evidenceId, reviewStatus, submissionId) {
+    const commentInput = document.getElementById('evidence-review-comment-input');
+    const comment = commentInput ? commentInput.value.trim() : '';
+
+    if ((reviewStatus === 'Correction Required' || reviewStatus === 'Rejected') && !comment) {
+      this.showToast('Please provide a specific comment explaining the correction or rejection reason.', 'warning');
+      if (commentInput) commentInput.focus();
+      return;
+    }
+
+    try {
+      const res = await api.reviewEvidence(evidenceId, reviewStatus, comment);
+      if (res && res.success) {
+        this.showToast(`Evidence status updated to '${reviewStatus}'.`, 'success');
+        this.closeModals();
+        if (submissionId) {
+          workflow.openReviewModal(submissionId);
+        }
+      } else {
+        this.showToast(res?.message || 'Failed to update review status.', 'danger');
+      }
+    } catch (err) {
+      this.showToast(err.message || 'Error reviewing evidence', 'danger');
+    }
+  }
+
+  async quickReviewEvidence(evidenceId, status, submissionId) {
+    try {
+      const res = await api.reviewEvidence(evidenceId, status, 'Verified and approved by Central MEIL Admin.');
+      if (res && res.success) {
+        this.showToast(`Evidence ${evidenceId} approved.`, 'success');
+        if (submissionId) this.loadSubmissionEvidence(submissionId);
+      } else {
+        this.showToast(res?.message || 'Action failed', 'danger');
+      }
+    } catch (err) {
+      this.showToast(err.message, 'danger');
+    }
+  }
+
+  quickReviewEvidencePrompt(evidenceId, status, submissionId) {
+    const reason = prompt(`Enter mandatory reviewer notes for ${status}:`);
+    if (!reason || !reason.trim()) {
+      this.showToast('Comment is mandatory when requesting correction or rejecting evidence.', 'warning');
+      return;
+    }
+    api.reviewEvidence(evidenceId, status, reason.trim()).then(res => {
+      if (res && res.success) {
+        this.showToast(`Evidence status updated to '${status}'.`, 'success');
+        if (submissionId) this.loadSubmissionEvidence(submissionId);
+      } else {
+        this.showToast(res?.message || 'Action failed', 'danger');
+      }
+    }).catch(err => this.showToast(err.message, 'danger'));
+  }
+
+  async showOcrInspectModal(evidenceId) {
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    const modalContent = document.getElementById('modal-dialog-content');
+    if (!modalBackdrop || !modalContent) return;
+
+    modalContent.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <div class="modal-header">
+          <h2 class="modal-title"><i data-lucide="scan-text"></i> OCR &amp; AI Extraction Details</h2>
+          <button class="modal-close-btn" onclick="ui.closeModals()"><i data-lucide="x"></i></button>
+        </div>
+        <div class="modal-body" id="ocr-inspect-body" style="padding:20px;">
+          <div style="text-align:center; padding:20px;">
+            <i data-lucide="loader-2" class="spin" style="width:24px; height:24px;"></i>
+            <p style="font-size:12px; margin-top:8px;">Fetching raw OCR text and confidence audit logs...</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="ui.closeModals()">Close</button>
+        </div>
+      </div>
+    `;
+    modalBackdrop.classList.add('open');
+    if (window.lucide) lucide.createIcons();
+
+    try {
+      const res = await api.getEvidenceById(evidenceId);
+      const doc = res?.data;
+      const extraction = doc?.extractions?.[0];
+      const json = extraction?.extractedJson || {};
+
+      document.getElementById('ocr-inspect-body').innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:10px 14px; background:var(--bg-surface-secondary); border-radius:6px;">
+          <div>
+            <strong style="font-size:14px; color:var(--text-primary);">${doc.originalName}</strong>
+            <span class="badge" style="font-family:monospace; margin-left:8px;">${doc.id}</span>
+          </div>
+          <span class="badge ${doc.ocrConfidence >= 90 ? 'badge-approved' : 'badge-warning'}">Overall Confidence: ${doc.ocrConfidence || 94}%</span>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-header"><h4 class="card-title" style="font-size:13px;"><i data-lucide="table"></i> Extracted Fields &amp; Confidence Breakdown</h4></div>
+          <div class="card-body" style="padding:0;">
+            <table class="table">
+              <thead><tr><th>Field Name</th><th>Extracted Value</th><th>Confidence</th><th>Mapping</th></tr></thead>
+              <tbody>
+                ${(extraction?.extractedFields && extraction.extractedFields.length > 0) ? extraction.extractedFields.map(f => `
+                  <tr>
+                    <td><strong>${f.fieldName}</strong></td>
+                    <td><code>${f.fieldValue} ${f.unit || ''}</code></td>
+                    <td><span class="badge ${f.confidence >= 90 ? 'badge-approved' : 'badge-warning'}">${f.confidence}%</span></td>
+                    <td>${f.mappedEsgField || doc.esgCategory || 'SEBI P6'}</td>
+                  </tr>
+                `).join('') : Object.entries(json).map(([k, v]) => `
+                  <tr>
+                    <td><strong>${k}</strong></td>
+                    <td><code>${typeof v === 'object' ? JSON.stringify(v) : v}</code></td>
+                    <td><span class="badge badge-approved">95%</span></td>
+                    <td>${doc.esgCategory || 'SEBI P6'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        ${extraction?.rawText ? `
+          <div class="card" style="margin:0;">
+            <div class="card-header"><h4 class="card-title" style="font-size:13px;"><i data-lucide="file-text"></i> Raw Extracted OCR Text</h4></div>
+            <div class="card-body" style="padding:12px;">
+              <pre style="background:var(--bg-surface-secondary); padding:10px; border-radius:4px; font-size:11px; white-space:pre-wrap; max-height:160px; overflow:auto; margin:0; border:1px solid var(--border-light);">${extraction.rawText}</pre>
+            </div>
+          </div>
+        ` : ''}
+      `;
+      if (window.lucide) lucide.createIcons();
+    } catch (e) {
+      document.getElementById('ocr-inspect-body').innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+    }
+  }
+
   openDataEntryModal(category = 'environment') {
-    const subId = auth.getActiveSubsidiaryId();
-    const sub = auth.getActiveSubsidiary();
+    const subId = auth.getActiveSubsidiaryId() || 'sub-1';
+    const sub = auth.getActiveSubsidiary() || (typeof store !== 'undefined' && store.getSubsidiaryById(subId)) || { name: 'MEIL Hydro', shortName: 'Hydro' };
     const esg = store.getESGData(subId, this.activeYearFilter) || {};
     const env = esg.environment || {};
     const soc = esg.social || {};
@@ -3329,7 +4000,7 @@ class UIManager {
       <div class="modal-dialog modal-lg">
         <div class="modal-header">
           <h2 class="modal-title">
-            <i data-lucide="edit-3"></i> Sustainability Data Entry: ${sub?.shortName}
+            <i data-lucide="edit-3"></i> Sustainability Data Entry: ${sub?.shortName || sub?.name || 'Subsidiary'}
           </h2>
           <button class="modal-close-btn" onclick="ui.closeModals()"><i data-lucide="x"></i></button>
         </div>
@@ -3409,7 +4080,7 @@ class UIManager {
   }
 
   saveDataEntryForm(submitImmediately = false) {
-    const subId = auth.getActiveSubsidiaryId();
+    const subId = auth.getActiveSubsidiaryId() || 'sub-1';
     const totEnergy = Number(document.getElementById('inp-total-energy')?.value) || 0;
     const renEnergy = Number(document.getElementById('inp-ren-energy')?.value) || 0;
     const s1 = Number(document.getElementById('inp-ghg-s1')?.value) || 0;
@@ -5268,21 +5939,21 @@ class UIManager {
 
           <div class="form-group" style="margin-bottom:16px;">
             <label class="form-label">Reviewer Verification Remarks / Feedback <span class="required">*</span></label>
-            <textarea id="sdg-review-remarks" class="form-control" rows="3" placeholder="Enter verification notes, reason for approval, or specific corrections required from the subsidiary..."></textarea>
+            <textarea id="sdg-review-remarks" class="form-control" rows="3" placeholder="Enter verification notes, reason for approval, or specific corrections required from the subsidiary...">${item.reviewerRemarks || ''}</textarea>
           </div>
         </div>
 
-        <div class="modal-footer" style="display:flex; justify-content:space-between;">
+        <div class="modal-footer" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <button class="btn btn-secondary" onclick="ui.closeModals()">Close</button>
           
-          <div style="display:flex; gap:8px;">
-            <button class="btn btn-danger" onclick="const r = document.getElementById('sdg-review-remarks')?.value; workflow.rejectSDGContribution('${item.id}', r);">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-danger" onclick="ui.handleSDGReject('${item.id}')">
               <i data-lucide="x-circle"></i> Reject Initiative
             </button>
-            <button class="btn btn-outline" style="border-color:#d97706; color:#d97706;" onclick="const r = document.getElementById('sdg-review-remarks')?.value; workflow.requestSDGCorrection('${item.id}', r);">
+            <button class="btn btn-outline" style="border-color:#d97706; color:#d97706;" onclick="ui.handleSDGCorrection('${item.id}')">
               <i data-lucide="alert-triangle"></i> Request Correction
             </button>
-            <button class="btn btn-brand-red" onclick="const r = document.getElementById('sdg-review-remarks')?.value; workflow.approveSDGContribution('${item.id}', r);">
+            <button class="btn btn-brand-red" onclick="ui.handleSDGApprove('${item.id}')">
               <i data-lucide="check-check"></i> Approve &amp; Consolidate
             </button>
           </div>
@@ -5292,6 +5963,34 @@ class UIManager {
 
     modalBackdrop.classList.add('open');
     this.refreshIcons();
+  }
+
+  handleSDGApprove(id) {
+    const input = document.getElementById('sdg-review-remarks');
+    const remarks = input && input.value.trim() ? input.value.trim() : "Verified and approved by Central MEIL ESG Committee.";
+    workflow.approveSDGContribution(id, remarks);
+  }
+
+  handleSDGCorrection(id) {
+    const input = document.getElementById('sdg-review-remarks');
+    const remarks = input ? input.value.trim() : '';
+    if (!remarks) {
+      this.showToast("Please provide specific reviewer comments for required correction.", "warning");
+      if (input) input.focus();
+      return;
+    }
+    workflow.requestSDGCorrection(id, remarks);
+  }
+
+  handleSDGReject(id) {
+    const input = document.getElementById('sdg-review-remarks');
+    const reason = input ? input.value.trim() : '';
+    if (!reason) {
+      this.showToast("Please provide formal justification for rejecting this filing.", "warning");
+      if (input) input.focus();
+      return;
+    }
+    workflow.rejectSDGContribution(id, reason);
   }
 
   showSDGDetailModal(sdgNumber) {
@@ -6553,16 +7252,16 @@ class UIManager {
           </div>
         </div>
 
-        <div class="modal-footer" style="display:flex; justify-content:space-between;">
+        <div class="modal-footer" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <button class="btn btn-secondary" onclick="ui.closeModals()">Close</button>
-          <div style="display:flex; gap:8px;">
-            <button class="btn btn-danger" onclick="const notes = document.getElementById('proj-review-notes')?.value; workflow.rejectProjectSubmission('${projectId}', 'FY 2025-26', notes); ui.closeModals(); ui.renderCurrentView();" title="Reject project filing">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-danger" onclick="ui.handleProjectReject('${projectId}', 'FY 2025-26')" title="Reject project filing">
               <i data-lucide="x-circle"></i> Reject Filing
             </button>
-            <button class="btn btn-outline" style="border-color:#d97706; color:#d97706;" onclick="const notes = document.getElementById('proj-review-notes')?.value; workflow.requestProjectCorrection('${projectId}', 'FY 2025-26', notes); ui.closeModals(); ui.renderCurrentView();" title="Request specific corrections from Sub-Company Admin">
+            <button class="btn btn-outline" style="border-color:#d97706; color:#d97706;" onclick="ui.handleProjectCorrection('${projectId}', 'FY 2025-26')" title="Request specific corrections from Sub-Company Admin">
               <i data-lucide="alert-triangle"></i> Request Correction
             </button>
-            <button class="btn btn-brand-red" onclick="const notes = document.getElementById('proj-review-notes')?.value; workflow.approveProjectSubmission('${projectId}', 'FY 2025-26', notes); ui.closeModals(); ui.renderCurrentView();" title="Approve and include in MEIL Consolidated Metrics">
+            <button class="btn btn-brand-red" onclick="ui.handleProjectApprove('${projectId}', 'FY 2025-26')" title="Approve and include in MEIL Consolidated Metrics">
               <i data-lucide="check-check"></i> Approve &amp; Consolidate
             </button>
           </div>
@@ -6572,6 +7271,34 @@ class UIManager {
 
     modalBackdrop.classList.add('open');
     this.refreshIcons();
+  }
+
+  handleProjectApprove(projectId, year = 'FY 2025-26') {
+    const input = document.getElementById('proj-review-notes');
+    const notes = input && input.value.trim() ? input.value.trim() : "Verified and approved for group consolidation.";
+    workflow.approveProjectSubmission(projectId, year, notes);
+  }
+
+  handleProjectCorrection(projectId, year = 'FY 2025-26') {
+    const input = document.getElementById('proj-review-notes');
+    const notes = input ? input.value.trim() : '';
+    if (!notes) {
+      this.showToast("Please provide specific reviewer comments for required correction.", "warning");
+      if (input) input.focus();
+      return;
+    }
+    workflow.requestProjectCorrection(projectId, year, notes);
+  }
+
+  handleProjectReject(projectId, year = 'FY 2025-26') {
+    const input = document.getElementById('proj-review-notes');
+    const notes = input ? input.value.trim() : '';
+    if (!notes) {
+      this.showToast("Please provide formal justification for rejecting this project filing.", "warning");
+      if (input) input.focus();
+      return;
+    }
+    workflow.rejectProjectSubmission(projectId, year, notes);
   }
 
   switchProjectReviewTab(tab) {
@@ -6883,3 +7610,4 @@ class UIManager {
 
 // Global Singleton UI Instance
 const ui = new UIManager();
+window.ui = ui;

@@ -1,0 +1,760 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MAIN_ADMIN
+  SUB_ADMIN
+}
+
+enum SubmissionStatus {
+  Draft
+  Submitted
+  Under_Review
+  Approved
+  Correction_Required
+  Rejected
+}
+
+enum AccessStatus {
+  Active
+  Suspended
+  Revoked
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  MANUAL_REVIEW
+}
+
+// 1. Users
+model User {
+  id                   String            @id @default(uuid())
+  email                String            @unique
+  passwordHash         String
+  name                 String
+  role                 Role              @default(SUB_ADMIN)
+  title                String?
+  subsidiaryId         String?
+  accessStatus         AccessStatus      @default(Active)
+  lastLogin            DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  subsidiary           Subsidiary?       @relation(fields: [subsidiaryId], references: [id])
+  auditLogs            AuditLog[]
+  reviewerComments     ReviewerComment[]
+  createdSimulations   WhatIfSimulation[]
+  uploadedEvidence     EvidenceDocument[]
+
+  @@index([role])
+  @@index([subsidiaryId])
+  @@index([email])
+}
+
+// 2. Main Company
+model MainCompany {
+  id              String         @id @default("main-meil")
+  name            String         @default("Megha Engineering and Infrastructures Limited")
+  cin             String         @default("U45200TG2006PLC050278")
+  headquarters    String         @default("Hyderabad, Telangana, India")
+  reportingYear   String         @default("FY 2025-26")
+  turnover        Float          @default(32500)
+  totalEmployees  Int            @default(45200)
+  activeProjects  Int            @default(185)
+  subsidiaries    Subsidiary[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+// 3. Subsidiaries
+model Subsidiary {
+  id                 String              @id
+  mainCompanyId      String              @default("main-meil")
+  name               String
+  code               String              @unique
+  sector             String
+  location           String
+  headquarters       String?
+  cin                String?
+  equityHolding      Float               @default(100.0)
+  contactEmail       String?
+  status             String              @default("Active")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  mainCompany        MainCompany         @relation(fields: [mainCompanyId], references: [id])
+  users              User[]
+  businessUnits      BusinessUnit[]
+  projects           Project[]
+  companyProfile     CompanyProfile?
+  businessActivities BusinessActivity[]
+  esgRecords         EsgRecord[]
+  brsrSections       BrsrSection[]
+  submissions        Submission[]
+  sdgContributions   SdgContribution[]
+  evidenceDocuments  EvidenceDocument[]
+  emissions          EmissionRecord[]
+  hotspots           Hotspot[]
+  whatIfSimulations  WhatIfSimulation[]
+
+  @@index([sector])
+  @@index([status])
+}
+
+// 4. Business Units
+model BusinessUnit {
+  id            String      @id
+  subsidiaryId  String
+  name          String
+  code          String
+  head          String?
+  location      String?
+  employeeCount Int         @default(0)
+  budgetCr      Float       @default(0.0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  subsidiary    Subsidiary  @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  projects      Project[]
+  esgRecords    EsgRecord[]
+  evidenceDocs  EvidenceDocument[]
+
+  @@index([subsidiaryId])
+}
+
+// 5. Projects
+model Project {
+  id               String              @id
+  subsidiaryId     String
+  buId             String
+  name             String
+  code             String              @unique
+  country          String              @default("India")
+  state            String?
+  city             String?
+  location         String?
+  latitude         Float
+  longitude        Float
+  projectType      String
+  projectStatus    String              @default("Active")
+  reportingYear    String              @default("FY 2025-26")
+  isInternational  Boolean             @default(false)
+  esgCompletion    Float               @default(0.0)
+  brsrCompletion   Float               @default(0.0)
+  submissionStatus SubmissionStatus    @default(Draft)
+  approvalStatus   String              @default("Pending Review")
+  safetyIncidents  Int                 @default(0)
+  client           String?
+  valueCr          Float?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  subsidiary       Subsidiary          @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  businessUnit     BusinessUnit        @relation(fields: [buId], references: [id], onDelete: Cascade)
+  esgRecords       EsgRecord[]
+  energyRecords    EnergyRecord[]
+  fuelRecords      FuelRecord[]
+  electricityRecs  ElectricityRecord[]
+  emissions        EmissionRecord[]
+  scope3Records    Scope3Record[]
+  evidenceDocs     EvidenceDocument[]
+  hotspots         Hotspot[]
+  whatIfSimulations WhatIfSimulation[]
+  submissions      Submission[]
+  sdgContributions SdgContribution[]
+
+  @@index([subsidiaryId])
+  @@index([buId])
+  @@index([reportingYear])
+  @@index([submissionStatus])
+}
+
+// 6. Company Profiles
+model CompanyProfile {
+  id              String      @id @default(uuid())
+  subsidiaryId    String      @unique
+  turnoverCr      Float       @default(0.0)
+  netWorthCr      Float       @default(0.0)
+  totalEmployees  Int         @default(0)
+  womenEmployees  Int         @default(0)
+  maleEmployees   Int         @default(0)
+  plantsCount     Int         @default(0)
+  officesCount    Int         @default(0)
+  csrSpentCr      Float       @default(0.0)
+  paidUpCapitalCr Float       @default(0.0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  subsidiary      Subsidiary  @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+}
+
+// 7. Business Activities
+model BusinessActivity {
+  id                 String     @id @default(uuid())
+  subsidiaryId       String
+  description        String
+  nicCode            String
+  turnoverPercentage Float
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  subsidiary         Subsidiary @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+
+  @@index([subsidiaryId])
+}
+
+// 8. ESG Records
+model EsgRecord {
+  id                 String       @id @default(uuid())
+  subsidiaryId       String
+  projectId          String?
+  buId               String?
+  reportingYear      String       @default("FY 2025-26")
+  category           String       // Environmental, Social, Governance
+  status             SubmissionStatus @default(Draft)
+  // Environment metrics
+  scope1Co2e         Float?       @default(0.0)
+  scope2Co2e         Float?       @default(0.0)
+  scope3Co2e         Float?       @default(0.0)
+  totalEmissionsCo2e Float?       @default(0.0)
+  waterConsumedKl    Float?       @default(0.0)
+  waterRecycledKl    Float?       @default(0.0)
+  wasteGeneratedMt   Float?       @default(0.0)
+  wasteRecycledMt    Float?       @default(0.0)
+  renewableEnergyKwh Float?       @default(0.0)
+  totalEnergyGj      Float?       @default(0.0)
+  // Social metrics
+  trainingHoursAvg   Float?       @default(0.0)
+  femaleEmployeePct  Float?       @default(0.0)
+  fatalIncidents     Int?         @default(0)
+  lostTimeInjuryFreq Float?       @default(0.0)
+  csrBeneficiaries   Int?         @default(0)
+  // Governance metrics
+  boardDiversityPct  Float?       @default(0.0)
+  independentDirsPct Float?       @default(0.0)
+  ethicsCasesReported Int?        @default(0)
+  ethicsCasesResolved Int?        @default(0)
+  auditScorePct      Float?       @default(0.0)
+  // Additional JSON for arbitrary fields
+  detailedMetrics    Json?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  subsidiary         Subsidiary   @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  project            Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  businessUnit       BusinessUnit? @relation(fields: [buId], references: [id], onDelete: SetNull)
+
+  @@index([subsidiaryId])
+  @@index([projectId])
+  @@index([reportingYear])
+  @@index([category])
+}
+
+// 9. BRSR Sections
+model BrsrSection {
+  id             String      @id @default(uuid())
+  subsidiaryId   String
+  reportingYear  String      @default("FY 2025-26")
+  sectionKey     String      // section_a, section_b, principle_1..9
+  title          String
+  status         String      @default("In Progress") // Completed, In Progress, Pending
+  completionPct  Float       @default(0.0)
+  dataJson       Json
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  subsidiary     Subsidiary  @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+
+  @@index([subsidiaryId, reportingYear])
+  @@index([sectionKey])
+}
+
+// 10. BRSR Indicators Catalog
+model BrsrIndicator {
+  id            String    @id @default(uuid())
+  section       String    // Section A, Section B, Section C
+  principle     String?   // P1 to P9
+  indicatorCode String    @unique // e.g., P6-E1, P3-LTI
+  question      String
+  category      String    // Essential / Leadership
+  unit          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 11. Energy Records
+model EnergyRecord {
+  id            String      @id @default(uuid())
+  subsidiaryId  String
+  projectId     String
+  reportingYear String      @default("FY 2025-26")
+  energySource  String      // Grid Electricity, Diesel Generator, Solar Rooftop, Natural Gas
+  renewable     Boolean     @default(false)
+  consumption   Float
+  unit          String      // kWh, MWh, GJ, Litres
+  costInr       Float?
+  recordDate    DateTime    @default(now())
+  evidenceId    String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, reportingYear])
+}
+
+// 12. Fuel Records (Scope 1 direct activity)
+model FuelRecord {
+  id            String      @id @default(uuid())
+  subsidiaryId  String
+  projectId     String
+  reportingYear String      @default("FY 2025-26")
+  fuelType      String      // Diesel, Petrol, Natural Gas, LPG, Furnace Oil
+  quantity      Float
+  unit          String      @default("L")
+  costInr       Float?
+  supplier      String?
+  siteLocation  String?
+  invoiceNumber String?
+  invoiceDate   DateTime?
+  evidenceId    String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, reportingYear])
+}
+
+// 13. Electricity Records (Scope 2 activity)
+model ElectricityRecord {
+  id            String      @id @default(uuid())
+  subsidiaryId  String
+  projectId     String
+  reportingYear String      @default("FY 2025-26")
+  kwhConsumed   Float
+  gridProvider  String?
+  meterNumber   String?
+  billingPeriod String?
+  costInr       Float?
+  evidenceId    String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, reportingYear])
+}
+
+// 14. Emission Factors (Configurable & Versioned)
+model EmissionFactor {
+  id             String           @id @default(uuid())
+  category       String           // Scope 1 Fuel, Scope 2 Electricity, Scope 3 Freight, Scope 3 Travel, Materials
+  fuelType       String           // Diesel, Petrol, Grid Electricity, Fly-Ash Cement, Ordinary Portland Cement
+  factor         Float            // e.g. 2.68 kg CO2e per Litre
+  unit           String           // kg CO2e
+  activityUnit   String           // Litres, kWh, Tonnes, Passenger-km
+  source         String           // CEA CO2 Database 2024, IPCC 2006, DEFRA 2024, Bureau of Energy Efficiency
+  version        String           @default("v2025.1")
+  validFrom      DateTime         @default(now())
+  validTo        DateTime?
+  isDefault      Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  emissionRecs   EmissionRecord[]
+
+  @@index([category, fuelType])
+  @@index([version])
+}
+
+// 15. Emission Records (Computed traceable GHG emissions)
+model EmissionRecord {
+  id                 String          @id @default(uuid())
+  subsidiaryId       String
+  projectId          String
+  reportingYear      String          @default("FY 2025-26")
+  scope              String          // Scope 1, Scope 2, Scope 3
+  categoryName       String          // Stationary Combustion, Mobile Combustion, Purchased Electricity, etc.
+  activityValue      Float
+  activityUnit       String
+  factorId           String?
+  emissionFactorVal  Float
+  factorSource       String?
+  calculatedCo2eKg   Float           // Stored in kg CO2e
+  calculatedCo2eMt   Float           // Stored in metric tonnes CO2e
+  evidenceId         String?
+  calculationVersion String          @default("v2025.1")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  subsidiary         Subsidiary      @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  project            Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  emissionFactor     EmissionFactor? @relation(fields: [factorId], references: [id], onDelete: SetNull)
+
+  @@index([subsidiaryId, reportingYear])
+  @@index([projectId, scope])
+}
+
+// 16. Scope 3 Records
+model Scope3Record {
+  id                 String    @id @default(uuid())
+  subsidiaryId       String
+  projectId          String
+  reportingYear      String    @default("FY 2025-26")
+  categoryNumber     Int       // 1 to 15
+  categoryName       String    // Purchased goods, Capital goods, Fuel & energy-related, Upstream transportation, etc.
+  activityData       Float
+  unit               String
+  emissionFactor     Float
+  calculatedCo2eMt   Float
+  methodology        String
+  source             String?
+  evidenceId         String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, reportingYear])
+}
+
+// 17. SDGs Catalog
+model SdgTarget {
+  id               Int               @id // 1 to 17
+  title            String
+  description      String
+  category         String            // Social, Environment, Governance
+  defaultTarget    String?
+  contributions    SdgContribution[]
+}
+
+// 18. SDG Contributions
+model SdgContribution {
+  id                 String           @id @default(uuid())
+  subsidiaryId       String
+  projectId          String?
+  sdgNumber          Int
+  reportingYear      String           @default("FY 2025-26")
+  initiativeName     String
+  description        String
+  kpi                String
+  baseline           Float            @default(0.0)
+  currentValue       Float            @default(0.0)
+  targetValue        Float            @default(100.0)
+  progressPct        Float            @default(0.0)
+  unit               String?
+  status             SubmissionStatus @default(Draft)
+  submittedBy        String?
+  submissionDate     DateTime?
+  reviewedBy         String?
+  approvalDate       DateTime?
+  reviewerNotes      String?
+  evidenceId         String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  subsidiary         Subsidiary       @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  project            Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sdg                SdgTarget        @relation(fields: [sdgNumber], references: [id])
+
+  @@index([subsidiaryId, reportingYear])
+  @@index([sdgNumber])
+  @@index([status])
+}
+
+// 19. Framework Mappings
+model FrameworkMapping {
+  id                 String    @id @default(uuid())
+  esgIndicator       String
+  esgArea            String
+  sdgTarget          String
+  sdgNumber          Int
+  brsrPrinciple      String
+  brsrSection        String
+  griStandard        String?
+  applicability      String    @default("Group-Wide")
+  meilContext        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+// 20. Submissions (Workflow Root)
+model Submission {
+  id               String              @id // SUBM-2026-001
+  subsidiaryId     String
+  projectId        String?
+  reportingYear    String              @default("FY 2025-26")
+  reportType       String              @default("Integrated ESG & BRSR Report")
+  status           SubmissionStatus    @default(Draft)
+  submittedBy      String?
+  submissionDate   DateTime?
+  reviewedBy       String?
+  approvalDate     DateTime?
+  reviewerNotes    String?
+  esgScore         Float               @default(70.0)
+  brsrScore        Float               @default(65.0)
+  lastUpdated      DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  subsidiary       Subsidiary          @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  project          Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  history          SubmissionHistory[]
+  reviewerComments ReviewerComment[]
+  evidenceDocuments EvidenceDocument[]
+
+  @@index([subsidiaryId, reportingYear])
+  @@index([status])
+  @@index([reportingYear])
+}
+
+// 21. Submission History (Audit Trail of Workflow Steps)
+model SubmissionHistory {
+  id             String           @id @default(uuid())
+  submissionId   String
+  previousStatus SubmissionStatus
+  newStatus      SubmissionStatus
+  changedBy      String
+  changeNotes    String?
+  changedAt      DateTime         @default(now())
+  submission     Submission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+}
+
+// 22. Reviewer Comments
+model ReviewerComment {
+  id           String      @id @default(uuid())
+  submissionId String
+  authorId     String?
+  authorName   String
+  commentText  String
+  statusTag    String      @default("General") // Correction Required, Approval Note, Clarification
+  createdAt    DateTime    @default(now())
+  submission   Submission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  user         User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([submissionId])
+}
+
+// 23. Evidence Documents
+model EvidenceDocument {
+  id                 String            @id // Format: EV-xxxxxxxx-xxx
+  filename           String            // Stored unique filename
+  originalName       String            // Original human-readable filename
+  mimeType           String
+  fileSize           Int
+  filePath           String
+  fileHash           String?           // SHA-256 content hash for duplicate detection
+  submissionId       String?
+  uploadedBy         String
+  uploaderId         String?
+  uploaderRole       String            @default("SUB_ADMIN")
+  subsidiaryId       String
+  projectId          String?
+  buId               String?
+  reportingYear      String            @default("FY 2025-26")
+  category           String            @default("Bill/Invoice") // Diesel receipt, Electricity bill, Weighbridge slip, Meter photograph, Water bill, Waste document
+  esgCategory        String?           @default("Energy / Fuel") // Scope 1 / Fuel Combustion, Scope 2 / Electricity, etc.
+  brsrPrinciple      String?           @default("Principle 6")
+  scope              String?           @default("Scope 1") // Scope 1, Scope 2, Scope 3, General
+  supportedMetric    String?           // e.g., "Diesel Consumption = 1000 Litres"
+  supportedEmission  Float?            // e.g., 2.68
+  ocrStatus          OcrStatus         @default(PENDING)
+  ocrConfidence      Float?            @default(0.0)
+  verificationStatus String            @default("Unverified") // Verified, Unverified, Rejected
+  reviewStatus       String            @default("Pending Review") // Pending Review, Approved, Correction Required, Rejected
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  reviewComments     String?
+  isDuplicate        Boolean           @default(false)
+  duplicateOfId      String?
+  version            Int               @default(1)
+  parentEvidenceId   String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  subsidiary         Subsidiary        @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  project            Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  businessUnit       BusinessUnit?     @relation(fields: [buId], references: [id], onDelete: SetNull)
+  uploader           User?             @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  submission         Submission?       @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  extractions        OcrExtraction[]
+  versions           EvidenceVersion[]
+
+  @@index([subsidiaryId, reportingYear])
+  @@index([projectId])
+  @@index([submissionId])
+  @@index([fileHash])
+  @@index([reviewStatus])
+}
+
+// 23b. Evidence Version History
+model EvidenceVersion {
+  id             String           @id @default(uuid())
+  evidenceId     String
+  versionNumber  Int
+  filename       String
+  originalName   String
+  filePath       String
+  fileHash       String?
+  mimeType       String
+  fileSize       Int
+  uploadedBy     String
+  uploaderId     String?
+  uploadedAt     DateTime         @default(now())
+  changeReason   String?
+  evidence       EvidenceDocument @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@index([evidenceId])
+}
+
+// 24. OCR Extraction Records
+model OcrExtraction {
+  id              String           @id @default(uuid())
+  evidenceId      String
+  documentType    String           @default("Diesel Fuel Bill") // Diesel Fuel Bill, Electricity Bill, Weighbridge Slip, Meter Photo
+  rawText         String?
+  extractedJson   Json
+  confidenceScore Float            @default(0.0) // 0 to 100
+  provider        String           @default("LOCAL_OCR_ENGINE") // GEMINI_VISION, LOCAL_OCR_ENGINE
+  status          String           @default("COMPLETED")
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  evidence        EvidenceDocument @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  extractedFields ExtractedField[]
+
+  @@index([evidenceId])
+}
+
+// 25. Extracted Fields
+model ExtractedField {
+  id             String        @id @default(uuid())
+  extractionId   String
+  fieldName      String        // fuel_type, quantity, invoice_date, vendor, site, cost
+  fieldValue     String
+  confidence     Float         @default(0.0)
+  mappedEsgField String?       // Scope 1 / Diesel Fuel Consumption
+  unit           String?       // Litres, kWh, INR
+  isCorrected    Boolean       @default(false)
+  correctedValue String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  extraction     OcrExtraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+
+  @@index([extractionId])
+}
+
+// 26. Consolidation Runs
+model ConsolidationRun {
+  id                   String      @id @default(uuid())
+  reportingYear        String      @default("FY 2025-26")
+  timestamp            DateTime    @default(now())
+  runBy                String      @default("Central MEIL Admin")
+  status               String      @default("SUCCESS")
+  totalScope1Mt        Float       @default(0.0)
+  totalScope2Mt        Float       @default(0.0)
+  totalScope3Mt        Float       @default(0.0)
+  totalEmissionsMt     Float       @default(0.0)
+  approvedSubsidiaries Int         @default(0)
+  approvedProjects     Int         @default(0)
+  snapshotData         Json
+  createdAt            DateTime    @default(now())
+
+  @@index([reportingYear])
+}
+
+// 27. What-If Simulations
+model WhatIfSimulation {
+  id              String      @id @default(uuid())
+  title           String
+  scenarioType    String      // DIESEL_TO_SOLAR, DIESEL_TO_GRID, FLY_ASH_CEMENT, CUSTOM
+  subsidiaryId    String
+  projectId       String?
+  reportingYear   String      @default("FY 2025-26")
+  baselineData    Json        // Baseline emissions, fuel, cost
+  scenarioInputs  Json        // Replacement percentage, assumptions, factors
+  resultsData     Json        // New emissions, delta, cost savings, percent change
+  createdById     String?
+  createdByName   String      @default("Executive Admin")
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  subsidiary      Subsidiary  @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  project         Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  creator         User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([subsidiaryId, reportingYear])
+  @@index([scenarioType])
+}
+
+// 28. Hotspots (Identified Risk & Intensity Areas)
+model Hotspot {
+  id            String      @id @default(uuid())
+  subsidiaryId  String
+  projectId     String?
+  reportingYear String      @default("FY 2025-26")
+  hotspotType   String      // HIGH_SCOPE1, HIGH_INTENSITY, OVERDUE_SUBMISSION, RECURRING_SAFETY, LOW_COMPLETION
+  severity      String      @default("HIGH") // HIGH, MEDIUM, CRITICAL
+  metricName    String
+  value         Float
+  threshold     Float
+  percentShare  Float?
+  description   String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  subsidiary    Subsidiary  @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  project       Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([subsidiaryId, reportingYear])
+  @@index([hotspotType])
+}
+
+// 29. Report Generation Records
+model ReportRecord {
+  id            String      @id @default(uuid())
+  reportType    String      // CONSOLIDATED_ESG, BRSR_EXECUTIVE, SUBSIDIARY_ESG, PROJECT_AUDIT, CONTROL_TOWER, WHAT_IF
+  title         String
+  subsidiaryId  String?
+  reportingYear String      @default("FY 2025-26")
+  format        String      @default("PDF") // PDF, EXCEL, CSV
+  filePath      String?
+  generatedBy   String      @default("System")
+  status        String      @default("READY")
+  createdAt     DateTime    @default(now())
+
+  @@index([reportType, reportingYear])
+}
+
+// 30. Notifications
+model Notification {
+  id            String      @id @default(uuid())
+  userId        String?
+  roleTarget    String      @default("ALL") // MAIN_ADMIN, SUB_ADMIN, ALL
+  subsidiaryId  String?
+  title         String
+  message       String
+  type          String      @default("info") // info, success, warning, danger
+  isRead        Boolean     @default(false)
+  linkUrl       String?
+  createdAt     DateTime    @default(now())
+
+  @@index([roleTarget, subsidiaryId])
+  @@index([isRead])
+}
+
+// 31. Audit Logs (Immutable Security Log)
+model AuditLog {
+  id           String      @id @default(uuid())
+  actor        String
+  role         Role
+  userId       String?
+  action       String      // LOGIN, LOGOUT, SUBMIT, APPROVE, CORRECTION_REQUESTED, REJECT, RESUBMIT, SNAP_OCR, SIMULATE, EXPORT
+  entity       String      // Submission, Project, EsgRecord, WhatIfSimulation, Evidence
+  entityId     String?
+  subsidiaryId String?
+  details      String
+  ipAddress    String?
+  userAgent    String?
+  timestamp    DateTime    @default(now())
+  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([action])
+  @@index([role])
+  @@index([entity])
+  @@index([timestamp])
+}

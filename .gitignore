@@ -1,0 +1,23 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Application uploads
+uploads/
+backend/uploads/
+
+# Local PostgreSQL physical cluster data (do not ship physical database files)
+pgdata_meil/
+*.log
+pg_server.log
+
+# Operating System files
+.DS_Store
+Thumbs.db

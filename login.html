@@ -137,7 +137,7 @@
             <input type="checkbox" id="remember-me" checked>
             <span>Remember session</span>
           </label>
-          <span style="font-size:11px; color:#64748b;">Default password: <strong>admin</strong></span>
+          <span style="font-size:11px; color:#64748b;">Secured with bcrypt &amp; server JWT</span>
         </div>
 
         <button type="submit" class="btn-login-submit" id="btn-submit-login">
@@ -152,6 +152,7 @@
 
   <!-- Core State & Auth Scripts -->
   <script src="js/data/defaultData.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/store.js"></script>
   <script src="js/auth.js"></script>
 
@@ -225,7 +226,7 @@
       document.getElementById("btn-role-sub").classList.remove("active");
       renderDemoChips();
       document.getElementById("email").value = "admin@meil.in";
-      document.getElementById("password").value = "admin";
+      document.getElementById("password").value = "";
     });
 
     document.getElementById("btn-role-sub").addEventListener("click", () => {
@@ -234,7 +235,7 @@
       document.getElementById("btn-role-main").classList.remove("active");
       renderDemoChips();
       document.getElementById("email").value = "olectra@meil.in";
-      document.getElementById("password").value = "admin";
+      document.getElementById("password").value = "";
     });
 
     // Password visibility toggle
@@ -252,19 +253,32 @@
     });
 
     // Form submit
-    document.getElementById("login-form").addEventListener("submit", (e) => {
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
-      handleLogin(email, password);
+      await handleLogin(email, password);
     });
 
-    function handleLogin(email, password) {
+    async function handleLogin(email, password) {
       const errorBanner = document.getElementById("login-error-banner");
       const errorText = document.getElementById("login-error-text");
       errorBanner.style.display = "none";
 
-      const res = auth.login(email, password);
+      const submitBtn = document.getElementById("btn-submit-login");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<span>Verifying credentials...</span>`;
+      }
+
+      const res = await auth.login(email, password);
+
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>Sign In to Dashboard</span><i data-lucide="arrow-right" style="width:16px; height:16px;"></i>`;
+        refreshIcons();
+      }
+
       if (res.success) {
         showToast(`Welcome back, ${res.user.name}`, "success");
         setTimeout(() => {
@@ -304,7 +318,7 @@
     document.addEventListener("DOMContentLoaded", () => {
       renderDemoChips();
       document.getElementById("email").value = "admin@meil.in";
-      document.getElementById("password").value = "admin";
+      document.getElementById("password").value = "";
       refreshIcons();
     });
   </script>

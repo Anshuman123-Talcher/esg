@@ -43,6 +43,90 @@ class AppStore {
     }
   }
 
+  async syncFromBackend() {
+    if (this._isSyncing || typeof api === 'undefined' || !api.isOnline) return;
+    this._isSyncing = true;
+    try {
+      const prevStateStr = JSON.stringify({
+        subsidiaries: this.state.subsidiaries,
+        businessUnits: this.state.businessUnits,
+        projects: this.state.projects,
+        submissions: this.state.submissions,
+        sdgContributions: this.state.sdgContributions,
+        notifications: this.state.notifications
+      });
+
+      const [subsRes, buRes, projRes, submRes, sdgRes, notifRes] = await Promise.all([
+        api.getSubsidiaries().catch(() => null),
+        api.getBusinessUnits().catch(() => null),
+        api.getProjects().catch(() => null),
+        api.getSubmissions('all').catch(() => null),
+        api.getSdgContributions().catch(() => null),
+        api.getNotifications().catch(() => null)
+      ]);
+
+      let changed = false;
+      if (subsRes && subsRes.success && Array.isArray(subsRes.data) && subsRes.data.length > 0) {
+        this.state.subsidiaries = subsRes.data;
+        changed = true;
+      }
+      if (buRes && buRes.success && Array.isArray(buRes.data) && buRes.data.length > 0) {
+        this.state.businessUnits = buRes.data;
+        changed = true;
+      }
+      if (projRes && projRes.success && Array.isArray(projRes.data) && projRes.data.length > 0) {
+        this.state.projects = projRes.data;
+        changed = true;
+      }
+      if (submRes && submRes.success && Array.isArray(submRes.data)) {
+        this.state.submissions = submRes.data.map(s => {
+          const normStatus = s.status === 'Correction_Required'
+            ? 'Correction Required'
+            : (s.status === 'Under_Review' ? 'Under Review' : s.status);
+          return {
+            ...s,
+            year: s.reportingYear || s.year || 'FY 2025-26',
+            reportingYear: s.reportingYear || s.year || 'FY 2025-26',
+            subsidiaryName: s.subsidiaryName || s.subsidiary?.name || 'Subsidiary',
+            subsidiaryCode: s.subsidiaryCode || s.subsidiary?.code || '',
+            status: normStatus,
+            rawStatus: s.rawStatus || s.status,
+            submissionDate: s.submissionDate ? (typeof s.submissionDate === 'string' && s.submissionDate.includes('T') ? s.submissionDate.slice(0, 10) : s.submissionDate) : null,
+            submittedAt: s.submittedAt || (s.submissionDate ? (typeof s.submissionDate === 'string' && s.submissionDate.includes('T') ? s.submissionDate.slice(0, 16).replace('T', ' ') : s.submissionDate) : null),
+            lastUpdated: s.lastUpdated ? (typeof s.lastUpdated === 'string' && s.lastUpdated.includes('T') ? s.lastUpdated.slice(0, 16).replace('T', ' ') : s.lastUpdated) : 'Just now'
+          };
+        });
+        changed = true;
+      }
+      if (sdgRes && sdgRes.success && Array.isArray(sdgRes.data)) {
+        this.state.sdgContributions = sdgRes.data;
+        changed = true;
+      }
+      if (notifRes && notifRes.success && Array.isArray(notifRes.data)) {
+        this.state.notifications = notifRes.data;
+        changed = true;
+      }
+
+      const newStateStr = JSON.stringify({
+        subsidiaries: this.state.subsidiaries,
+        businessUnits: this.state.businessUnits,
+        projects: this.state.projects,
+        submissions: this.state.submissions,
+        sdgContributions: this.state.sdgContributions,
+        notifications: this.state.notifications
+      });
+
+      if (changed && prevStateStr !== newStateStr) {
+        this.saveState();
+        console.log('[Store] Synchronized authoritative state from PostgreSQL backend.');
+      }
+    } catch (e) {
+      console.warn('[Store] Backend sync notice:', e);
+    } finally {
+      this._isSyncing = false;
+    }
+  }
+
   resetToDefault() {
     this.state = JSON.parse(JSON.stringify(DEFAULT_DATA));
     this.saveState();
@@ -1126,9 +1210,18 @@ class AppStore {
   }
 
   getSubmissions(year = "FY 2025-26", subsidiaryId = null) {
-    let list = this.state.submissions;
-    if (year && year !== 'all') list = list.filter(s => s.year === year);
-    if (subsidiaryId && subsidiaryId !== 'all') list = list.filter(s => s.subsidiaryId === subsidiaryId);
+    let list = this.state.submissions || [];
+    if (year && year !== 'all') {
+      list = list.filter(s => (s.year === year || s.reportingYear === year));
+    }
+    if (subsidiaryId && subsidiaryId !== 'all') {
+      list = list.filter(s => s.subsidiaryId === subsidiaryId);
+    } else if (!subsidiaryId && typeof auth !== 'undefined' && auth.isAuthenticated() && !auth.isMainAdmin()) {
+      const activeSub = auth.getActiveSubsidiaryId();
+      if (activeSub) {
+        list = list.filter(s => s.subsidiaryId === activeSub);
+      }
+    }
     return list;
   }
 
@@ -1330,7 +1423,8 @@ class AppStore {
   // Dashboard Metrics Calculator
   // =========================================================================
   calculateDashboardMetrics(role = "main_admin", subsidiaryId = "sub-3", year = "FY 2025-26") {
-    const submissions = this.getSubmissions(year);
+    // For main_admin, query across all subsidiaries explicitly
+    const submissions = this.getSubmissions(year, role === "main_admin" ? 'all' : subsidiaryId);
 
     if (role === "main_admin") {
       const consolidated = this.calculateConsolidatedData(year);
@@ -1338,12 +1432,12 @@ class AppStore {
       const totalBUs = this.state.businessUnits.length;
       const totalProjs = this.state.projects.length;
 
-      const submitted = submissions.filter(s => s.status === "Submitted").length;
-      const pendingReview = submissions.filter(s => s.status === "Submitted" || s.status === "Under Review").length;
-      const approved = submissions.filter(s => s.status === "Approved").length;
-      const rejected = submissions.filter(s => s.status === "Rejected").length;
-      const correction = submissions.filter(s => s.status === "Correction Required").length;
-      const drafts = submissions.filter(s => s.status === "Draft").length;
+      const submitted = submissions.filter(s => s.status === "Submitted" || s.rawStatus === "Submitted").length;
+      const pendingReview = submissions.filter(s => s.status === "Submitted" || s.status === "Under Review" || s.status === "Under_Review" || s.rawStatus === "Submitted" || s.rawStatus === "Under_Review").length;
+      const approved = submissions.filter(s => s.status === "Approved" || s.rawStatus === "Approved").length;
+      const rejected = submissions.filter(s => s.status === "Rejected" || s.rawStatus === "Rejected").length;
+      const correction = submissions.filter(s => s.status === "Correction Required" || s.status === "Correction_Required" || s.rawStatus === "Correction_Required").length;
+      const drafts = submissions.filter(s => s.status === "Draft" || s.rawStatus === "Draft").length;
 
       return {
         role: "main_admin",
@@ -1458,17 +1552,30 @@ class AppStore {
       subsidiaryId: subm.subsidiaryId,
       type: newStatus === "Approved" ? "approval" : (newStatus === "Correction Required" ? "correction" : "submission"),
       title: `Submission ${newStatus}: ${subm.subsidiaryName}`,
-      desc: reviewerNotes ? `Status changed to ${newStatus}. Note: "${reviewerNotes}"` : `Status updated from ${prevStatus} to ${newStatus}.`,
-      icon: newStatus === "Approved" ? "CheckCircle2" : (newStatus === "Correction Required" ? "CircleAlert" : "FileText"),
-      color: newStatus === "Approved" ? "success" : (newStatus === "Correction Required" ? "danger" : "info")
+      desc: reviewerNotes ? `Note: ${reviewerNotes}` : `Status updated to ${newStatus} by ${reviewerName}`,
+      icon: newStatus === "Approved" ? "CheckCircle" : (newStatus === "Correction Required" ? "AlertTriangle" : "FileText"),
+      color: newStatus === "Approved" ? "success" : (newStatus === "Correction Required" ? "warning" : "info")
     });
+
+    // Call backend API in background to maintain server authorization & persistence
+    if (typeof api !== 'undefined') {
+      if (newStatus === "Approved") {
+        api.approveSubmission(submissionId, reviewerNotes).catch(e => console.warn('[Store] API approve notice:', e));
+      } else if (newStatus === "Correction Required") {
+        api.requestCorrection(submissionId, reviewerNotes).catch(e => console.warn('[Store] API correction notice:', e));
+      } else if (newStatus === "Rejected") {
+        api.rejectSubmission(submissionId, reviewerNotes).catch(e => console.warn('[Store] API rejection notice:', e));
+      } else if (newStatus === "Submitted") {
+        api.submitSubmission(submissionId).catch(e => console.warn('[Store] API submit notice:', e));
+      }
+    }
 
     this.saveState();
     return true;
   }
 
   submitDataForReview(subsidiaryId, year = "FY 2025-26", submittedBy = "Sub-Company Admin") {
-    let subm = this.state.submissions.find(s => s.subsidiaryId === subsidiaryId && s.year === year);
+    let subm = this.state.submissions.find(s => s.subsidiaryId === subsidiaryId && (s.year === year || s.reportingYear === year));
     const sub = this.getSubsidiaryById(subsidiaryId);
     const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
 
@@ -1478,11 +1585,15 @@ class AppStore {
         id: newId,
         subsidiaryId,
         subsidiaryName: sub ? sub.name : "Subsidiary",
+        subsidiaryCode: sub ? sub.code : "",
         year,
+        reportingYear: year,
         reportType: "Integrated ESG & BRSR Report",
         submittedBy,
         submissionDate: nowStr,
+        submittedAt: nowStr,
         status: "Submitted",
+        rawStatus: "Submitted",
         lastUpdated: nowStr,
         reviewedBy: null,
         approvalDate: null,
@@ -1492,10 +1603,13 @@ class AppStore {
       };
       this.state.submissions.push(subm);
     } else {
-      subm.status = subm.status === "Correction Required" ? "Resubmitted" : "Submitted";
+      subm.status = (subm.status === "Correction Required" || subm.status === "Correction_Required") ? "Resubmitted" : "Submitted";
+      subm.rawStatus = "Submitted";
       subm.lastUpdated = nowStr;
       subm.submissionDate = nowStr;
+      subm.submittedAt = nowStr;
       subm.submittedBy = submittedBy;
+      if (!subm.subsidiaryName && sub) subm.subsidiaryName = sub.name;
     }
 
     // Sync ESG data status
@@ -1537,8 +1651,22 @@ class AppStore {
   }
 
   markAllNotificationsRead() {
+    if (typeof api !== 'undefined' && api.getToken()) {
+      api.markAllNotificationsRead().catch(err => console.warn('[Store] markAllNotificationsRead notice:', err));
+    }
     this.state.notifications.forEach(n => n.read = true);
     this.saveState();
+  }
+
+  markNotificationRead(id) {
+    if (typeof api !== 'undefined' && api.getToken()) {
+      api.markNotificationRead(id).catch(err => console.warn('[Store] markNotificationRead notice:', err));
+    }
+    const notif = this.state.notifications.find(n => n.id === id);
+    if (notif) {
+      notif.read = true;
+      this.saveState();
+    }
   }
 
   // =========================================================================
@@ -1655,7 +1783,6 @@ class AppStore {
       subsidiaryName: sub ? sub.name : null,
       name: data.name,
       email: data.email,
-      password: data.password || "admin",
       role: data.role || "SUB_ADMIN",
       title: data.title || (data.role === "MAIN_ADMIN" ? "Group Sustainability Officer" : "Subsidiary ESG Officer"),
       status: "ACTIVE",
@@ -1663,6 +1790,22 @@ class AppStore {
       lastLogin: "Never",
       createdAt: new Date().toISOString().slice(0, 10)
     };
+
+    if (typeof api !== 'undefined' && api.getToken()) {
+      api.createUser({
+        name: data.name,
+        email: data.email,
+        password: data.password || "TempPass#2026",
+        role: data.role || "SUB_ADMIN",
+        title: data.title,
+        subsidiaryId: data.subsidiaryId || null
+      }).then(res => {
+        if (res && res.success && res.data) {
+          newUser.id = res.data.id;
+        }
+      }).catch(err => console.warn('[Store] createUser backend notice:', err));
+    }
+
     users.push(newUser);
     this.addAuditLog("Admin", "USER_CREATED", `Created user account for ${newUser.name} (${newUser.email})`);
     this.saveState();
@@ -1670,6 +1813,9 @@ class AppStore {
   }
 
   deleteUser(userId) {
+    if (typeof api !== 'undefined' && api.getToken()) {
+      api.deleteUser(userId).catch(err => console.warn('[Store] deleteUser backend notice:', err));
+    }
     const users = this.getUsers();
     const idx = users.findIndex(u => u.id === userId);
     if (idx !== -1) {
@@ -1682,6 +1828,9 @@ class AppStore {
   }
 
   updateUserAccess(userId, status) {
+    if (typeof api !== 'undefined' && api.getToken()) {
+      api.updateUserAccess(userId, status).catch(err => console.warn('[Store] updateUserAccess backend notice:', err));
+    }
     const users = this.getUsers();
     const user = users.find(u => u.id === userId);
     if (!user) return false;
@@ -1710,6 +1859,20 @@ class AppStore {
       status: "Active",
       lastUpdated: new Date().toISOString().slice(0, 10)
     };
+
+    if (typeof api !== 'undefined' && api.getToken()) {
+      api.createSubsidiary({
+        name: data.name,
+        code: (data.code || data.shortName || data.name.substring(0, 4)).toUpperCase(),
+        sector: data.businessType || data.sector || "Infrastructure",
+        location: data.headquarters || "Hyderabad, India"
+      }).then(res => {
+        if (res && res.success && res.data) {
+          newSub.id = res.data.id;
+        }
+      }).catch(err => console.warn('[Store] createSubsidiary backend notice:', err));
+    }
+
     subs.push(newSub);
     this.addAuditLog("Admin", "SUBSIDIARY_ADDED", `Added subsidiary ${newSub.name}`);
     this.saveState();
@@ -1723,13 +1886,31 @@ class AppStore {
       subsidiaryId: data.subsidiaryId,
       code: data.code || `PRJ-${Math.floor(1000 + Math.random() * 9000)}`,
       name: data.name,
-      businessUnitId: data.businessUnitId || "bu-1",
+      businessUnitId: data.businessUnitId || data.buId || "bu-1",
       location: data.location || "India",
       status: data.status || "Active",
       esgCompletion: Number(data.esgCompletion) || 75,
       brsrCompletion: Number(data.brsrCompletion) || 70,
       approved: false
     };
+
+    if (typeof api !== 'undefined' && api.getToken()) {
+      api.createProject({
+        name: data.name,
+        code: data.code || newProj.code,
+        buId: data.businessUnitId || data.buId || "bu-1",
+        subsidiaryId: data.subsidiaryId,
+        location: data.location || "India",
+        projectType: data.projectType || "Infrastructure",
+        reportingYear: data.reportingYear || "FY 2025-26",
+        valueCr: Number(data.valueCr) || 0
+      }).then(res => {
+        if (res && res.success && res.data) {
+          newProj.id = res.data.id;
+        }
+      }).catch(err => console.warn('[Store] createProject backend notice:', err));
+    }
+
     projs.push(newProj);
     this.addAuditLog("User", "PROJECT_ADDED", `Added project ${newProj.name} (${newProj.code})`);
     this.saveState();
@@ -1841,5 +2022,6 @@ class AppStore {
 
 // Global Singleton Store Instance
 const store = new AppStore();
+window.store = store;
 
 

@@ -1,6 +1,7 @@
 /**
  * ESG & BRSR 11-Step Workflow and Review Lifecycle Controller
  * MEIL Centralized Sustainability System
+ * Server-authoritative workflow manager backed by Express REST API
  */
 
 class WorkflowManager {
@@ -11,10 +12,23 @@ class WorkflowManager {
   // =========================================================================
   // STEP 1 & 2: Save as Draft
   // =========================================================================
-  saveDraft(subsidiaryId, year, category, formData) {
+  async saveDraft(subsidiaryId, year, category, formData) {
     store.updateESGData(subsidiaryId, year, category, formData);
     
-    // Ensure submission status is Draft if not yet submitted
+    // Server-authoritative draft creation/update
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        await api.saveDraftSubmission({
+          subsidiaryId,
+          year,
+          reportType: "Integrated ESG & BRSR Report"
+        });
+      } catch (err) {
+        console.warn('[Workflow] Backend saveDraft notice:', err);
+      }
+    }
+
+    // Ensure local store submission status is Draft
     const subm = store.getSubmissions(year, subsidiaryId)[0];
     if (!subm || subm.status !== "Approved") {
       let currentSubm = subm;
@@ -50,36 +64,112 @@ class WorkflowManager {
   // =========================================================================
   // STEP 3: Submit Data for Review
   // =========================================================================
-  submitData(subsidiaryId, year) {
+  async submitData(subsidiaryId, year) {
     const user = auth.getUserInfo();
-    const subm = store.submitDataForReview(subsidiaryId, year, user.name);
+    const effectiveSubId = auth.isMainAdmin() ? subsidiaryId : (auth.getActiveSubsidiaryId() || subsidiaryId);
 
-    ui.showToast(`Submission ${subm.id} forwarded to Central MEIL Admin for review.`, "success");
+    // Call authoritative PostgreSQL backend first
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.submitSubmission({ subsidiaryId: effectiveSubId, year });
+        if (res && res.success && res.data) {
+          const backendSubm = res.data;
+          // Synchronize authoritative submission into store
+          const existingIdx = store.state.submissions.findIndex(s => s.id === backendSubm.id || (s.subsidiaryId === effectiveSubId && (s.year === year || s.reportingYear === year)));
+          if (existingIdx >= 0) {
+            store.state.submissions[existingIdx] = { ...store.state.submissions[existingIdx], ...backendSubm };
+          } else {
+            store.state.submissions.unshift(backendSubm);
+          }
+
+          // Sync ESG data status
+          const esgKey = `${effectiveSubId}_${year}`;
+          if (store.state.esgData && store.state.esgData[esgKey]) {
+            store.state.esgData[esgKey].status = "Submitted";
+          }
+
+          store.saveState();
+          ui.showToast(`Submission ${backendSubm.id} forwarded to Central MEIL Executive Admin for review.`, "success");
+          ui.renderCurrentView();
+          return;
+        } else if (res && !res.success && res.message && !res.isNetworkError) {
+          ui.showToast(`Submission notice: ${res.message}`, "warning");
+        }
+      } catch (err) {
+        console.warn('[Workflow] Backend submitData error:', err);
+      }
+    }
+
+    // Fallback if offline
+    const subm = store.submitDataForReview(effectiveSubId, year, user.name);
+    ui.showToast(`Submission ${subm.id} recorded locally.`, "success");
     ui.renderCurrentView();
   }
 
   // =========================================================================
   // STEP 4 & 5: Main Company Admin Reviews Data
   // =========================================================================
-  openReviewModal(submissionId) {
-    const subm = store.getSubmissionById(submissionId);
-    if (!subm) return;
+  async openReviewModal(submissionId) {
+    let subm = store.getSubmissionById(submissionId);
+    if (!subm && typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.getSubmissionById(submissionId);
+        if (res && res.success && res.data) {
+          subm = res.data;
+        }
+      } catch (e) {
+        console.warn('[Workflow] Backend fetch error:', e);
+      }
+    }
+
+    if (!subm) {
+      if (typeof ui !== 'undefined' && ui.showToast) {
+        ui.showToast(`Submission record ${submissionId} not found.`, "warning");
+      }
+      return;
+    }
 
     this.activeSubmissionUnderReview = subm;
-    const esg = store.getESGData(subm.subsidiaryId, subm.year) || {};
-    const brsr = store.getBRSRData(subm.subsidiaryId, subm.year) || {};
+    const year = subm.year || subm.reportingYear || "FY 2025-26";
+    const esg = store.getESGData(subm.subsidiaryId, year) || {};
+    const brsr = store.getBRSRData(subm.subsidiaryId, year) || {};
 
-    ui.showReviewModal(subm, esg, brsr);
+    if (typeof ui !== 'undefined' && ui.showReviewModal) {
+      ui.showReviewModal(subm, esg, brsr);
+    }
   }
 
   // =========================================================================
   // STEP 5A: Main Company Admin Approves Submission
-  // -> STEP 9 & 10: Only Approved Data rolls into Consolidated Reporting
+  // -> Server is authoritative (Requirement 2)
   // =========================================================================
-  approveSubmission(submissionId, notes = "Verified and approved by Central MEIL ESG Committee.") {
+  async approveSubmission(submissionId, notes = "Verified and approved by Central MEIL ESG Committee.") {
     const user = auth.getUserInfo();
+
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.approveSubmission(submissionId, notes);
+        if (res && res.success && res.data) {
+          const updated = res.data;
+          const idx = store.state.submissions.findIndex(s => s.id === submissionId);
+          if (idx >= 0) {
+            store.state.submissions[idx] = { ...store.state.submissions[idx], ...updated };
+          }
+          store.setSubmissionStatus(submissionId, "Approved", notes, user.name);
+          ui.showToast(`Submission ${submissionId} approved in PostgreSQL and consolidated into MEIL Group metrics.`, "success");
+          ui.closeModals();
+          ui.renderCurrentView();
+          return;
+        } else if (res && !res.success && !res.isNetworkError) {
+          ui.showToast(res.message || "Failed to approve submission on server.", "danger");
+          return;
+        }
+      } catch (err) {
+        console.warn('[Workflow] Backend approval notice:', err);
+      }
+    }
+
     const success = store.setSubmissionStatus(submissionId, "Approved", notes, user.name);
-    
     if (success) {
       ui.showToast(`Submission ${submissionId} approved! Data is now consolidated into MEIL Group metrics.`, "success");
       ui.closeModals();
@@ -92,15 +182,38 @@ class WorkflowManager {
   // =========================================================================
   // STEP 5B & 6: Main Company Admin Requests Correction
   // =========================================================================
-  requestCorrection(submissionId, comment) {
+  async requestCorrection(submissionId, comment) {
     if (!comment || comment.trim().length === 0) {
       ui.showToast("Please provide specific reviewer comments detailing the required correction.", "warning");
       return;
     }
 
     const user = auth.getUserInfo();
-    const success = store.setSubmissionStatus(submissionId, "Correction Required", comment, user.name);
 
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.requestCorrection(submissionId, comment);
+        if (res && res.success && res.data) {
+          const updated = res.data;
+          const idx = store.state.submissions.findIndex(s => s.id === submissionId);
+          if (idx >= 0) {
+            store.state.submissions[idx] = { ...store.state.submissions[idx], ...updated };
+          }
+          store.setSubmissionStatus(submissionId, "Correction Required", comment, user.name);
+          ui.showToast(`Correction requested for ${submissionId} in PostgreSQL. Subsidiary notified.`, "warning");
+          ui.closeModals();
+          ui.renderCurrentView();
+          return;
+        } else if (res && !res.success && !res.isNetworkError) {
+          ui.showToast(res.message || "Failed to request correction on server.", "danger");
+          return;
+        }
+      } catch (err) {
+        console.warn('[Workflow] Backend requestCorrection notice:', err);
+      }
+    }
+
+    const success = store.setSubmissionStatus(submissionId, "Correction Required", comment, user.name);
     if (success) {
       ui.showToast(`Correction requested for ${submissionId}. Subsidiary notified with remarks.`, "warning");
       ui.closeModals();
@@ -112,17 +225,39 @@ class WorkflowManager {
 
   // =========================================================================
   // STEP 5C: Main Company Admin Rejects Submission
-  // -> Submission marked Rejected, strictly excluded from Consolidation
   // =========================================================================
-  rejectSubmission(submissionId, reason) {
+  async rejectSubmission(submissionId, reason) {
     if (!reason || reason.trim().length === 0) {
       ui.showToast("Please provide specific justification/remarks for rejecting this filing.", "warning");
       return;
     }
 
     const user = auth.getUserInfo();
-    const success = store.setSubmissionStatus(submissionId, "Rejected", reason, user.name);
 
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.rejectSubmission(submissionId, reason);
+        if (res && res.success && res.data) {
+          const updated = res.data;
+          const idx = store.state.submissions.findIndex(s => s.id === submissionId);
+          if (idx >= 0) {
+            store.state.submissions[idx] = { ...store.state.submissions[idx], ...updated };
+          }
+          store.setSubmissionStatus(submissionId, "Rejected", reason, user.name);
+          ui.showToast(`Submission ${submissionId} rejected in PostgreSQL. Excluded from group consolidation.`, "danger");
+          ui.closeModals();
+          ui.renderCurrentView();
+          return;
+        } else if (res && !res.success && !res.isNetworkError) {
+          ui.showToast(res.message || "Failed to reject submission on server.", "danger");
+          return;
+        }
+      } catch (err) {
+        console.warn('[Workflow] Backend reject notice:', err);
+      }
+    }
+
+    const success = store.setSubmissionStatus(submissionId, "Rejected", reason, user.name);
     if (success) {
       ui.showToast(`Submission ${submissionId} has been REJECTED. Subsidiary notified to revise disclosures.`, "danger");
       ui.closeModals();
@@ -135,11 +270,50 @@ class WorkflowManager {
   // =========================================================================
   // STEP 7: Sub-Company Admin Resubmits Corrected Data
   // =========================================================================
-  resubmitData(subsidiaryId, year) {
+  async resubmitData(subsidiaryId, year) {
     const user = auth.getUserInfo();
-    const subm = store.submitDataForReview(subsidiaryId, year, user.name);
+    const effectiveSubId = auth.isMainAdmin() ? subsidiaryId : (auth.getActiveSubsidiaryId() || subsidiaryId);
 
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.resubmitSubmission({ subsidiaryId: effectiveSubId, year });
+        if (res && res.success && res.data) {
+          const backendSubm = res.data;
+          const existingIdx = store.state.submissions.findIndex(s => s.id === backendSubm.id || (s.subsidiaryId === effectiveSubId && (s.year === year || s.reportingYear === year)));
+          if (existingIdx >= 0) {
+            store.state.submissions[existingIdx] = { ...store.state.submissions[existingIdx], ...backendSubm };
+          } else {
+            store.state.submissions.unshift(backendSubm);
+          }
+
+          const esgKey = `${effectiveSubId}_${year}`;
+          if (store.state.esgData && store.state.esgData[esgKey]) {
+            store.state.esgData[esgKey].status = "Submitted";
+          }
+
+          store.saveState();
+          ui.showToast(`Revised ESG data for ${year} resubmitted to PostgreSQL. Status: Submitted.`, "success");
+          ui.renderCurrentView();
+          return;
+        }
+      } catch (err) {
+        console.warn('[Workflow] Backend resubmitData notice:', err);
+      }
+    }
+
+    const subm = store.submitDataForReview(effectiveSubId, year, user.name);
     ui.showToast(`Updated data resubmitted for ${year}. Status: Resubmitted (Under Review).`, "success");
+    ui.renderCurrentView();
+  }
+
+  // =========================================================================
+  // STEP 8: Main Company Admin Re-opens a Filing for Review
+  // =========================================================================
+  async reopenSubmission(submissionId, notes = "Filing re-opened by Central MEIL Admin for review.") {
+    const user = auth.getUserInfo();
+    store.setSubmissionStatus(submissionId, "Under Review", notes, user.name);
+    ui.showToast(`Submission ${submissionId} re-opened for active review.`, "info");
+    ui.closeModals();
     ui.renderCurrentView();
   }
 
@@ -226,22 +400,36 @@ class WorkflowManager {
   // Main Admin: Review -> Approve -> Request Correction / Reject
   // =========================================================================
 
-  saveSDGDraft(formData) {
+  async saveSDGDraft(formData) {
     const user = auth.getUserInfo();
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        await api.saveSdgContribution(formData);
+      } catch (err) {
+        console.warn('[Workflow] Backend saveSDGDraft notice:', err);
+      }
+    }
     const record = store.saveSDGContribution(formData, false, user.name);
     if (record) {
-      ui.showToast(`SDG ${record.sdgNumber} initiative draft "${record.initiativeName}" saved locally.`, "success");
+      ui.showToast(`SDG ${record.sdgNumber} initiative draft "${record.initiativeName}" saved.`, "success");
       ui.closeModals();
       ui.renderCurrentView();
     }
   }
 
-  submitSDGContribution(formDataOrId) {
+  async submitSDGContribution(formDataOrId) {
     const user = auth.getUserInfo();
     let record = null;
     if (typeof formDataOrId === 'string') {
       record = store.submitSDGContribution(formDataOrId, user.name);
     } else {
+      if (typeof api !== 'undefined' && api.getToken()) {
+        try {
+          await api.saveSdgContribution(formDataOrId);
+        } catch (err) {
+          console.warn('[Workflow] Backend submitSDGContribution notice:', err);
+        }
+      }
       record = store.saveSDGContribution(formDataOrId, true, user.name);
     }
     if (record) {
@@ -251,8 +439,19 @@ class WorkflowManager {
     }
   }
 
-  approveSDGContribution(id, remarks = "Verified and approved by Central MEIL ESG Committee.") {
+  async approveSDGContribution(id, remarks = "Verified and approved by Central MEIL ESG Committee.") {
     const user = auth.getUserInfo();
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.approveSdgContribution(id, remarks);
+        if (!res.success && !res.isNetworkError) {
+          ui.showToast(res.message || "Failed to approve SDG contribution on server.", "danger");
+          return;
+        }
+      } catch (err) {
+        console.warn('[Workflow] Backend approveSDGContribution notice:', err);
+      }
+    }
     const record = store.approveSDGContribution(id, remarks, user.name);
     if (record) {
       ui.showToast(`SDG ${record.sdgNumber} contribution APPROVED! Data is now active in consolidated Group analytics.`, "success");
@@ -261,12 +460,23 @@ class WorkflowManager {
     }
   }
 
-  requestSDGCorrection(id, comment) {
+  async requestSDGCorrection(id, comment) {
     if (!comment || comment.trim().length === 0) {
       ui.showToast("Please provide specific reviewer comments for required correction.", "warning");
       return;
     }
     const user = auth.getUserInfo();
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.requestCorrectionSdg(id, comment);
+        if (!res.success && !res.isNetworkError) {
+          ui.showToast(res.message || "Failed to request correction on server.", "danger");
+          return;
+        }
+      } catch (err) {
+        console.warn('[Workflow] Backend requestSDGCorrection notice:', err);
+      }
+    }
     const record = store.requestSDGCorrection(id, comment, user.name);
     if (record) {
       ui.showToast(`Correction requested for SDG ${record.sdgNumber} initiative. Subsidiary notified with audit remarks.`, "warning");
@@ -275,12 +485,23 @@ class WorkflowManager {
     }
   }
 
-  rejectSDGContribution(id, reason) {
+  async rejectSDGContribution(id, reason) {
     if (!reason || reason.trim().length === 0) {
       ui.showToast("Please provide formal justification for rejecting this filing.", "warning");
       return;
     }
     const user = auth.getUserInfo();
+    if (typeof api !== 'undefined' && api.getToken()) {
+      try {
+        const res = await api.rejectSdgContribution(id, reason);
+        if (!res.success && !res.isNetworkError) {
+          ui.showToast(res.message || "Failed to reject SDG contribution on server.", "danger");
+          return;
+        }
+      } catch (err) {
+        console.warn('[Workflow] Backend rejectSDGContribution notice:', err);
+      }
+    }
     const record = store.rejectSDGContribution(id, reason, user.name);
     if (record) {
       ui.showToast(`SDG ${record.sdgNumber} contribution REJECTED. Excluded from consolidated analytics.`, "danger");
@@ -292,4 +513,4 @@ class WorkflowManager {
 
 // Global Singleton Workflow Instance
 const workflow = new WorkflowManager();
-
+window.workflow = workflow;

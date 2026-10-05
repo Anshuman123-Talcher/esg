@@ -1002,3 +1002,5 @@ const ExportUtil = {
     reportEngine.exportReportToExcel(reportType, year, subsidiaryId);
   }
 };
+window.reportEngine = reportEngine;
+window.ExportUtil = ExportUtil;
